@@ -11,11 +11,11 @@ C
 C DATA DECLARATIONS
 C
       INTEGER*2     IMODE,SC,IC,IZ,SC2,SC3,SC4
-      INTEGER*2     WSTA(2,5),BSTA(2,2),DSTA
+      INTEGER*2     WSTA(2,5),BSTA(2,2),DSTA,TSTA
       INTEGER*2     ZNESTA(50,3)
       REAL*4        ZNESTAU(50)
       REAL*4        STASTA(5,MAX_STATIONS,MAX_STATIONS)
-      REAL*4        WDIST(2,5),BDIST(2,2),BUTIL
+      REAL*4        WDIST(2,5),BDIST(2,2),BUTIL,WTIME
       CHARACTER*15  NAME(2)
       DATA          NAME/'GO Rail        ',
      *                   'TTC Subway     '/
@@ -51,6 +51,8 @@ C
       DO K=1,50
       BUTIL=-999.0
       IF(ZNEREF(K,1).LE.0) CYCLE
+      TSTA=IEQUIV(ZNEREF(K,2))
+      IF((TSTA.NE.TTCUNION).AND.AIR.AND.UNION_ONLY) CYCLE
 C -------------------------------------------------------------------
       IF(DEBUG) THEN
       WRITE(26,8003) IEQUIV(ZNEREF(K,1)),
@@ -77,7 +79,8 @@ C
       IF(STANUM(SC).NE.2) GOTO 200
       IF(STASTA(2,IC2,SC).EQ.0.0) GO TO 200
       IF(ZNEREF(K,2).EQ.SC2.AND.WDIST(2,IC).NE.0.0) THEN
-      UTIL=COEFF(7)*WDIST(2,IC)+STASTA(2,IC2,SC)
+      WTIME=(60.0*WDIST(2,IC))/(3.0*1.60934)
+      UTIL=COEFF(7)*WTIME+STASTA(2,IC2,SC)
 C ------------------------------------------------------------
       IF(SDETAIL) THEN
       WRITE(26,8001) K,IC,IEQUIV(WSTA(2,IC)),

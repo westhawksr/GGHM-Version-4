@@ -64,7 +64,7 @@ C...................................................................
       DO 9032 IX=1,10
       SC=NNDEX(IMODE,IX)-MAX_IZONES
       IF(SC.LE.0) SC=MAX_IZONES
-      WRITE(26,9033) NNDEX(IMODE,IX),DSTA(imode,IX),
+      WRITE(26,9033) IEQUIV(NNDEX(IMODE,IX)),IEQUIV(DSTA(imode,IX)),
      *               DUTIL(IMODE,IX),STANAME(SC)
  9033 FORMAT(1X,'UTIL(',I4,'-->',I4')=',F8.2,5X,A37)
  9032 CONTINUE

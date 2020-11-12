@@ -16,10 +16,10 @@ C---------------------------------------------------------------------
       include 'stadat.inc'
 c
       integer*2         time(4),iz,jz,ista,ix,itemp,itemp2
-      integer*2         unit,orgzn,destzn,type,imode,iter
+      integer*2         unit,orgzn,destzn,type,imode,iter,yindex,zindex
       integer*2         staznei(max_stations,max_izones,3,5)
-      integer*2         zonesta(max_izones),units(15),msta(2)
-      integer*2         bsta(2,2),btxfer(2,2),busmode(2,5,2)
+      integer*2         zonesta(max_izones),units(15),msta(2),duration
+      integer*2         bsta(2,2),btxfer(2,2),busmode(2,5,2),pnrindex
       integer*2         wsta(2,5),wdsta(2,5),bdsta(2,2),crdsta(2)
       integer*2         zindur(max_stations),zindcr(max_stations)
       integer*2         osta(2,12),asta(2,12),tsta,tdsta,dsta(2,10)
@@ -84,7 +84,7 @@ c
       real*4            pertrp4(4000),pertrp5(4000)
       real*4            pertrp6(4000),pertrp,tmotor
       real*4            walktime(4000),biketime(4000)
-      real*4            upxivt(1000,1000)   
+      real*4            upxivt(1000,1000),egrivt(1000,2)
       real*4            gorzfare(4000),ttczfare(4000)
       real*4            wutil(2,5),tutil,twdist,butil(2,2)
       real*4            pnrrat,pnrrat2,putil(2,10),hwydst(4000)
@@ -138,18 +138,19 @@ c
       real*4            walkt,walk2,utilwk,biket,bike1,bike2,utilbk
       real*4            nmprob(2),lsnmot,tnmot,tnmwk,tnmbk
       real*4            znelot(max_izones,50,2),znernt(max_izones,10,2)
-      real*4            ctotal,nmadj
-      real*4            lprkcst,pspaces,shcost,shfactr,shdprice
+      real*4            ctotal,nmadj,vspaces,xcnst,distratio
+      real*4            lprkcst,pspaces,shcost,shfactr,shdprice,xprkcst
       real*4            k_pubprk,xdist,denome,lslote,lslot,ulottrn(50)
-      real*4            utilot(50,2),ulotwlk(50),ulotshl(50)
+      real*4            utilot(50,2),ulotwlk(50),ulotshl(50),lsrnt
       real*4            eutilot(50,4),eproblot(50,4),problot(50),lspub
       real*4            urntshl(10),urnttrn(10),eutlrnt(10,2)
       real*4            probrnt(10,2),utlatxi,utlarnt,utlalmo,utladrp
       real*4            utlaonc,utlaupe,eutlair(10),probair(10),lsprv
-      real*4            tlimo,trntl,ttaxi,toncl,aesum(12),utlauber
+      real*4            tlimo,trntl,ttaxi,toncl,utlauber
       real*4            accuber,costuber,kwait,tuber,tupx,utiluber
-      real*4            expuber,tuberacc
+      real*4            expuber,tuberacc,txwait,percent,cpercent
       real*4            vcratio,lottrn(50,50,7),vehtrp,lotrips(50,4)
+      real*4            lottrp(4000,3),dairport,dunion
       real*4            wcr(50,max_stations),lcr
       real*4            wur(50,max_stations),lur
       real*4            lcrss(max_stations,max_stations)
@@ -158,24 +159,27 @@ c
       real*4            lurstaz(max_stations,50)
       real*4            splogsum(max_zones,50)
       real*4            spperson(max_zones,50),sptotal(50)
-      real*4            utilvs0,utilvs1
+      real*4            utilvs0,utilvs1,xtemp,ttcgor(max_izones)
       real*4            upxsta(max_stations,max_stations)
+      real*4            tunion,tweston,tbloor,tbus
       real*8            denom,tesum(39,7),stasum(1000,12)
+      real*8            aesum(12),aesum2(41,12)
       real*8            stasum2(max_stations,7),maxvalue
       real*8            stasum3(max_stations,3)
       real*8            stasum4(max_stations,3),stasum5(max_stations,2)
-      real*8            stasum6(max_stations,2)
+      real*8            stasum6(max_stations,2),pertrips(41)
       real*8            tdrv0,tdrv2,tdrv3,ttrip(25,6),ptrip(25,6)
       real*8            gbusivt(101,2),gbusrat(101,2)
       real*8            gbustivt(101,2),rapdrat(101,2)
       real*8            txfers(6,6),tottrn(41,41,6),gorail(21,21)
-      real*8            totaut(41,41,4)
+      real*8            totaut(41,41,4),ttcgortlf(100)
       real*8            ttcsubway(21,21),gorailp1(21,21)
       real*8            gorailp2(21,21),gorailp3(21,21)
       real*8            avlttc(41,41,2),gorailp4(21,21)
       real*8            airtprob(50,50,7),airrprob(10,50,7),pnrtrp(12)
       real*8            nonmot(41,41,3),spdist(41,41,50),spsum(51,10)
-      logical           csort,eventsp,gorchk,ttcchk
+      logical           csort,eventsp,gorchk,ttcchk,uberavail
+      character*3       ans(2)
       character*13      name(2),tname(6),nname(3),autoname(4)
       character*25      ttcname(4),gorname(10)
       character*80      header
@@ -208,6 +212,7 @@ c
      *                          'Stouffville','Not Used',
      *                          'Lakeshore East',
      *                          'Union Station'/
+      data              ans/'YES','NO'/
       maxiz=0
       maxjz=0
       maxvalue=0.0
@@ -220,6 +225,7 @@ c
       pertrp4=0.0
       pertrp5=0.0
       pertrp6=0.0
+      pertrips=0.0
       gbusivt=0.0
       gbustivt=0.0
       gbusrat=0.0
@@ -241,6 +247,7 @@ c
       eventsp=.false.
       ctotal=0.0
       aesum=0.0
+      aesum2=0.0
       pnrtrp=0.0
       stasum=0.0
       stasum2=0.0
@@ -253,20 +260,30 @@ c
       stasum6=0.0
       bstrfare=0.0
       rapdfare=0.0
+      lottrp=0.0
+      ttcgor=0.0
+      ttcgortlf=0.0
+      uberavail=.true.
+      egrivt=0.0
+      ttcind=0
+      sdebug=.false.
 c
 c     initiate program and obtain input file information
 c
       call rctl
       if(airpass) call freqdist
+      if(airpass) call taxidist
+      if(airpass) call freqduration
 C
       if(air) airtrn=.true.
-      IF(air) cnvrge=.true.
+      If(air) cnvrge=.true.
 c
       if(ptest) call bucket
 c
 c     read station file
 c
       call stafile
+      if(ldebug) call closesta
 c
 c     special event generation
 c
@@ -289,13 +306,19 @@ c ---------------------------------------------------------------
 c     create station-to-zone utility values
 c ---------------------------------------------------------------
       do imode=1,3
-      call egress(stazne,imode,zonesta,staznei)
+      call egress(stazne,imode,zonesta,staznei,egrivt)
       end do
       open(172,file='mlogit.lock',status='unknown',
      *          form='formatted')
       write(172,8005)
  8005 format(' End of Station-to-Zone Utility Computations')
       close(172,status='keep')
+C
+      if(air.and.debug) then
+      debug=.false.
+      sdebug=.true.
+      end if
+      if(airpass) call backtrack(stasta,stazne,zonesta,egrivt)
 C--------------------------------------------------------------
 C     read & store zone to pearson parking lot time
 C--------------------------------------------------------------
@@ -379,11 +402,16 @@ c ===============================================================
       gorailp3=0.0
       gorailp4=0.0
       ttcsubway=0.0
-      if(air.and.(.not.airtrn)) write(*,8002)
+      pertrips=0.0
+      if(air.and.(.not.airtrn)) then
+      write(*,8002)
+      if(sdebug) debug=.true.
+      end if
       do iz=1,max_izones
 	    auttrp=0.0
 	    outtrp=0.0
 	    airtrp=0.0
+	    lottrp=0.0
 	    vskmtrp=0.0
       bstrfare=0.0
       rapdfare=0.0
@@ -431,7 +459,7 @@ C---------------------------------------------------------------
       orgzn=iz
       unit=34
       call mfread(unit,type,orgzn,destzn,pertrp1,srow,prow,arow)
-      if(ncats.gt.1) then
+      if(ncats.gt.1.and.(.not.airpass)) then
       unit=35
       call mfread(unit,type,orgzn,destzn,pertrp2,srow,prow,arow)
       unit=36
@@ -444,12 +472,28 @@ C---------------------------------------------------------------
       call mfread(unit,type,orgzn,destzn,pertrp6,srow,prow,arow)
       end if
       end if
+c
+c     Air Passenger Time Period and Market Segmentation
+c
+      if(airpass.and.(.not.airtrn)) then
+      do jz=1,max_izones
+      pertrp1(jz)=pertrp1(jz)*timefact
+      pertrp3(jz)=pertrp1(jz)*airseg(3)
+      pertrp2(jz)=pertrp1(jz)*airseg(2)
+      pertrp1(jz)=pertrp1(jz)*airseg(1)      
+      end do
+      end if
       if(air.and.(.not.airtrn)) then
       ctotal=0.0
       do jz=1,max_izones
-      if(joi(jz)) ctotal=ctotal+pertrp1(jz)
-      end do
-      if(ctotal.le.0) cycle
+      if(joi(jz)) ctotal=ctotal+pertrp1(jz)+pertrp2(jz)+pertrp3(jz)
+      diz=iequiv(iz)
+      diz=dequiv(diz)
+      pertrips(diz)=pertrips(diz)+pertrp1(jz)+pertrp2(jz)+pertrp3(jz)
+      pertrips(maxpd+1)=pertrips(maxpd+1)+pertrp1(jz)+pertrp2(jz)+
+     *     pertrp3(jz)
+      end do  
+      if(ctotal.le.0.and.(.not.debug)) cycle
       end if
       end if
 c ----------------------------------------------------
@@ -465,7 +509,8 @@ c -------------------------------------------------------------------------
 c     TTC Subway to GO Rail Station Utility
 c -------------------------------------------------------------------------
       imode=1
-      call access(iz,imode,stasta,wsta,wdist,bsta,bdist,znestau,znesta)
+      if(ttcacc) call access(iz,imode,stasta,wsta,wdist,bsta,bdist,
+     *                       znestau,znesta)
 c -----------------------------------------------------------
 c     top ten drive access stations for GO Rail & TTC Subway
 c -----------------------------------------------------------
@@ -768,10 +813,12 @@ C....................................................................
      *        tperin(5)+tperin(6)
       end if
       if(debug) then
-      WRITE(26,9021) tperson,tperin(1),tperin(2),tperin(3),
-     *               tperin(4),tperin(5),tperin(6)
- 9021 FORMAT(/1X,'MARKET SEGMENTATION COMPUTATIONS'/
+      WRITE(26,9021) iequiv(iz),iequiv(jz),tperson,tperin(1),tperin(2),
+     *               tperin(3),tperin(4),tperin(5),tperin(6)
+ 9021 FORMAT(/1X,'PERSON SEGMENTATION COMPUTATIONS'/
      *       1X,'----------------------------------'/
+     *       1X,'PRODUCTION ZONE      =',I10/
+     *       1X,'ATTRACTION ZONE      =',I10/
      *       1X,'PERSON TRIPS    TOTAL=',F10.2/
      *       1X,'PERSON TRIPS MARKET 1=',F10.2/
      *       1X,'PERSON TRIPS MARKET 2=',F10.2/
@@ -824,6 +871,7 @@ C...SORT & RETAIN BEST 2 ORIGIN STATIONS
 c----------------------------------------------------------
 C....WALK ACCESS STATION UTILITY COMPUTATION -- 	GO Rail
 c----------------------------------------------------------
+      uberavail=.true.
       do ista=1,2
 	    imode=1
 	    call egrsta(jz,wsta(imode,ista),stasta,stazne,
@@ -832,6 +880,25 @@ c----------------------------------------------------------
      *   WUTIL(imode,ista),STASTA,STAZNE,IMODE)
       OSTA(imode,ista)=WSTA(imode,ista)
 	    ASTA(imode,ista)=WDSTA(imode,ista)
+c
+c     check competition with Uber (Air Passenger Model)
+c
+      if(airpass.and.(.not.airtrn)) then
+      if(iequiv(osta(imode,ista)).eq.gounion.and.
+     *   wdist(imode,ista).le.3.5)  uberavail=.false.
+c.........................................................
+      if(ldebug) then
+      write(26,9040) ista,iequiv(osta(imode,ista)),gounion,
+     *               wdist(imode,ista),uberavail
+ 9040 format(/' EVALUATE WALK DIRECTLY TO UNION STATION'/
+     *        ' ---------------------------------------'/
+     *        ' WALK ACCESS STATION #',I1,' =',I5/
+     *        ' GO UNION    STATION    =',I5/
+     *        ' WALK DISTANCE          =',F5.2/
+     *        ' UBERAVAIL              =',4X,L1/)
+      end if
+c........................................................
+      end if
 c
 c     station level utilities for 4-part path analysis
 c
@@ -886,14 +953,15 @@ c-------------------------------------------------
      *  BDSTA(imode,ista),BUTIL(imode,ista),STASTA,STAZNE,IMODE)
        OSTA(IMODE,(ISTA+2))=BSTA(IMODE,ISTA)
        ASTA(IMODE,(ISTA+2))=BDSTA(IMODE,ISTA)
-c
+c #######################################################
 c     station level utilities for 4-part path analysis
-c
-      if(bsta(imode,ista).eq.0) go to 50
-      if(butil(imode,ista).eq.0.0) go to 50
+c #######################################################
+      if(bsta(imode,ista).eq.0) go to 51
+      if(butil(imode,ista).eq.0.0) go to 51
+      chkpart4=.false.
       call part4(jz,bsta(imode,ista),stasta,stazne,imode,
      *           matr,morg,mdst,mind,mutil)
-      if(matr.le.0) go to 50
+      if(matr.le.0) go to 51
       walk1=stazne(3,(bdsta(imode,ista)-max_izones),jz)*coeff(7)
       cutil=butil(imode,ista)+walk1
       mutil=mutil+bdist(imode,ista)
@@ -906,6 +974,7 @@ c...........................................................
       osta3(imode,(ista+2))=morg+max_izones
       asta3(imode,(ista+2))=mdst+max_izones
       egrind(imode,(ista+2))=mind
+      chkpart4=.true.
 c..........................................................
       if(debug) write(26,9023) mutil,iequiv(asta(imode,(ista+2))),
      *          iequiv(osta3(imode,(ista+2))),
@@ -914,15 +983,19 @@ c..........................................................
 c...........................................................
       else
       if(debug) write(26,9123)
- 9123 format(' URBAN RAIL EGRESS PATH NOT SELECTED')
-c
+ 9123 format(/' URBAN RAIL EGRESS PATH NOT SELECTED'/
+     *        ' -----------------------------------'/)
+      end if
+   51 continue
+c #####################################################
 c     Evaluate TTC Subway Path for transit access
-c
-      if(ttcacc.and.ista.eq.1) then
+c #####################################################
+      if(ttcacc.and.ista.eq.1.and.(.not.airtrn)) then
       call teval(jz,ista,znesta,znestau,bsta,bdsta,butil,
      *           stasta,stazne,msta(ista),crdsta(ista),mutil)
       end if
       if(msta(ista).gt.0) then
+c.........................................................................
       if(debug) write(26,9056) msta(ista),
      *      iequiv(zneref(msta(ista),1)),
      *        staname(zneref(msta(ista),1)-max_izones),
@@ -940,19 +1013,41 @@ c
      *        ' TTC     EGRESS STATION=',I4,1X,A20/
      *        ' GO RAIL BUS    UTILITY=',F10.5/
      *        ' TTC/GO RAIL    UTILITY=',F10.5/)
-      butil(1,ista)=mutil
-      if(iequiv(znesta(msta(ista),2)).eq.TTCUNION) 
-     * butil(1,ista)=butil(1,ista)+
-     * (acnst(12)/(LSUM2CR*LSUM1TRN*LSUM3CW)) 
-      if(iequiv(znesta(msta(ista),2)).ne.TTCUNION) then
-      if(iequiv(znesta(msta(ista),2)).eq.BDMAIN) then
-      butil(1,ista)=butil(1,ista)-(5.0/(LSUM2CR*LSUM1TRN*LSUM3CW))
-      else
-      butil(1,ista)=butil(1,ista)-(2.5/(LSUM2CR*LSUM1TRN*LSUM3CW))      
-      end if
-      end if
+c........................................................................
+      butil(1,ista)=mutil+ttcnst
+c     if(iequiv(znesta(msta(ista),2)).eq.TTCUNION) 
+c    * butil(1,ista)=butil(1,ista)+
+c    * (acnst(12)/(LSUM2CR*LSUM1TRN*LSUM3CW)) 
+c     if(.not.airpass) then
+c     if(iequiv(znesta(msta(ista),2)).ne.TTCUNION) then
+c     if(iequiv(znesta(msta(ista),2)).eq.BDMAIN) then
+c     butil(1,ista)=butil(1,ista)-(5.0/(LSUM2CR*LSUM1TRN*LSUM3CW))
+c     else
+c     butil(1,ista)=butil(1,ista)-(2.5/(LSUM2CR*LSUM1TRN*LSUM3CW))      
+c     end if
+c     end if
+c     end if
+c........................................................................
+c     if(debug) then
+c     xcnst=acnst(12)/(LSUM2CR*LSUM1TRN*LSUM3CW)
+c     write(26,9057) mutil,
+c    *          iequiv(znesta(msta(ista),2)),
+c    *          staname(znesta(msta(ista),2)-max_izones),
+c    *          xcnst,butil(1,ista)
+c9057 format(' TTC SUBWAY/GO RAIL FINAL UTILITY COMPUTATION'/
+c    *       ' --------------------------------------------'/
+c    *        ' TTC/GO RAIL    UTILITY=',F10.5/
+c    *        ' TTC     EGRESS STATION=',I4,1X,A20/
+c    *        ' TTC UNION CONSTANT    =',F10.5/
+c    *        ' ADJUSTED       UTILITY=',F10.5/)
+c     end if
+c..........................................................................
       osta(imode,(ista+2))=zneref(msta(ista),1)
       asta(imode,(ista+2))=crdsta(ista)
+      if(chkpart4) then
+      osta3(imode,(ista+2))=0
+      asta3(imode,(ista+2))=0
+      egrind(imode,(ista+2))=0
       end if
       end if
    50 IMODE=2
@@ -1654,6 +1749,7 @@ C
       fshar=0.0
       if(tperin(c).le.0.0.and.(.not.lsbase).and.(.not.airtrn).and.
      *  (.not.spevent).and.(.not.visitor)) cycle
+      if(c.gt.1.and.airtrn) cycle
       ijpairs(c)=ijpairs(c)+1
 C
 C ====================  AIR PASSENGER MODEL SECTION ==================
@@ -1661,17 +1757,34 @@ C
 C       PEARSON PARKING LOT CHOICE
 C
       IF(AIR.AND.(.NOT.AIRTRN)) THEN
+  101 CALL RANDOM(RANVAL)
+      YINDEX=IFIX(RANVAL*1000.0)
+      IF(YINDEX.LE.0) GO TO 101
+      XTEMP=DURDIST(YINDEX)
+      DURATION=NINT(XTEMP)
+      IF(LDEBUG) THEN
+      WRITE(26,338) C,RANVAL,YINDEX,XTEMP,DURATION
+  338 FORMAT(/' DURATION COMPUTATIONS - MARKET SEGMENT ',I1/
+     *        ' -----------------------------------------'/
+     *        ' RANDOM VALUE=',F6.3/
+     *        ' YINDEX      =',I6/
+     *        ' XTEMP       =',F6.3/
+     *        ' DURATION    =',I6)
+      END IF
       IF(LDEBUG) WRITE(26,36) C
    36 FORMAT(/' PEARSON PARKING LOT CHOICE DRIVE ALONE UTILITY',
      *       ' COMPUTATIONS - MARKET SEGMENT ',I1/
      *       ' ------------------------------------------',
      *       '-------------'/
      *       ' PROD  ATTR            HIGHWAY     ZNELOT ',
-     *       '    WALK     SHUTTLE   TRANSIT   TRANSIT'/
+     *       '    WALK     SHUTTLE   TRANSIT   TRANSIT',14X,
+     *       '   DAILY   TOTAL'/
      *       ' ZONE  ZONE   LOT    TIME   DIST   UTILITY',
-     *       '   UTILITY   UTILITY   UTILITY   LOGSUM      KLOTTRN'/
+     *       '   UTILITY   UTILITY   UTILITY   LOGSUM      KLOTTRN',2X,
+     *       '  PRKCST  PRKCST'/
      *       ' ----  ----  -----  -----  -----  --------',
-     *       '  --------  --------  --------  ----------  ----------')
+     *       '  --------  --------  --------  ----------  ----------',
+     *       '  ------  ------')
       DO NI=1,50
       IF(PEQUIV(NI).LE.0) CYCLE
       IF(PRKDATA(NI,1).EQ.0) CYCLE
@@ -1690,13 +1803,23 @@ C....PUBLIC LOT
         ELSE
         WAIT1A=DMIN1(PRKDATA(NI,7),WAITLT) 
         WAIT1B=DIM(PRKDATA(NI,7),WAITLT)
-        LPRKCST=PRKDATA(NI,5)
+        XPRKCST=PRKDATA(NI,5)*FLOAT(DURATION)
+        LPRKCST=AMIN1(XPRKCST,MAXPCOST)
         PSPACES=PRKDATA(NI,3)
         IF(EMPPRK) PSPACES=0
         SHCOST=PRKDATA(NI,10)
         SFACTR=PRKDATA(NI,12)
         K_PUBPRK=KPUBPRK
         SHDPRICE=PRKDATA(NI,19)
+        IF(SDETAIL.AND.LDEBUG) WRITE(26,339) PRKDATA(NI,5),DURATION,
+     *            XPRKCST,MAXPCOST,LPRKCST
+  339   FORMAT(' AIR PASSENGER PARKING COST COMPUTATIONS'/
+     *         ' ---------------------------------------'/
+     *         ' DAILY PARKING COST (CENTS)=',F8.0/
+     *         ' DURATION                  =',I8/
+     *         ' TRIP DURATION PARKING COST=',F8.0/
+     *         ' MAX  DURATION PARKING COST=',F8.0/
+     *         ' MIN  DURATION PARKING COST=',F8.0/)
         END IF        
 C...ZONE TO LOT
       UTILOT(NI,1)=0.0
@@ -1705,6 +1828,7 @@ C...ZONE TO LOT
      *             COEFF(50+C)*OPCOST*ZNELOT(IZ,NI,2) +
      *             COEFF(50+C)*LPRKCST+
      *             COEFF(42)*LOG(PSPACES)+
+     *             ACOEF(6)*ZNELOT(IZ,NI,2)+
      *             K_PUBPRK/(LSUM1AUTO*LSUM2AUTO*LSUM3AUTO)+
      *             SHDPRICE/(LSUM1AUTO*LSUM2AUTO*LSUM3AUTO)
       END IF
@@ -1753,8 +1877,10 @@ C ----------------------------------------------------
       WRITE(26,334) IEQUIV(IZ),IEQUIV(JZ),IEQUIV(KJZ),
      *             ZNELOT(IZ,NI,1),ZNELOT(IZ,NI,2),
      *             UTILOT(NI,1),ULOTWLK(NI),ULOTSHL(NI),
-     *             ULOTTRN(NI),AIRTPROB(NI,AJZ,7),KLOTTRN
-  334 FORMAT(1X,I4,2X,I4,2X,I5,1X,F6.2,1X,F6.2,4(2X,F8.3),2(2X,F10.5))
+     *             ULOTTRN(NI),AIRTPROB(NI,AJZ,7),KLOTTRN,
+     *             PRKDATA(NI,5),LPRKCST
+  334 FORMAT(1X,I4,2X,I4,2X,I5,1X,F6.2,1X,F6.2,4(2X,F8.3),2(2X,F10.5),
+     *       2(2X,F6.0))
       END IF
 C ----------------------------------------------------------
       END DO
@@ -1850,13 +1976,13 @@ C...LOT TO ATTRACTION ZONE - SHUTTLE
        URNTSHL(NI)=
      *     COEFF(46)*ZNERNT(JZ,NI,1)*RNTLDATA(NI,6)+
      *     COEFF(44)*(RNTLDATA(NI,5)+RNTLDATA(NI,3))+
-     *     COEFF(50+C)*RNTLDATA(NI,4)
+     *     COEFF(50+C)*RNTLDATA(NI,4)+COEFF(46)*ZNELOT(IZ,NI,1)
        URNTSHL(NI)=URNTSHL(NI)/(LSUM1AUTO*LSUM2AUTO*LSUM3AUTO)
 C....LOT TO ATTRACTION ZONE - TRANSIT
        URNTTRN(NI)=0.0
        IF(AIRRPROB(NI,AJZ,7).NE.0.0.AND.AJZ.GT.0) THEN
 C      URNTTRN(NI)=AIRRPROB(NI,AJZ,7)/(LSUM1AUTO*LSUM2AUTO*LSUM3AUTO)
-       URNTTRN(NI)=AIRRPROB(NI,AJZ,7)
+       URNTTRN(NI)=AIRRPROB(NI,AJZ,7)+COEFF(46)*ZNELOT(IZ,NI,1)
        END IF
 C ----------------------------------------------------
       IF(LDEBUG) THEN
@@ -1875,6 +2001,7 @@ C ----------------------------------------------------------
      *  ' ZONE  ZONE   TAZ     SHARE    SHARE    SHARE'/
      *  ' ----  ----  -----  -------  -------  -------')
 C....COMPUTE PROBABILITIES
+      DENOME=0.0
       DENOM=0.0
       DO NI=1,10
       KJZ=IDINT(RNTLDATA(NI,1))
@@ -1883,47 +2010,75 @@ C....COMPUTE PROBABILITIES
       EUTLRNT(NI,2)=0.0
       IF(URNTSHL(NI).NE.0) EUTLRNT(NI,1)=EXP(URNTSHL(NI))
       IF(URNTTRN(NI).NE.0) EUTLRNT(NI,2)=EXP(URNTTRN(NI))
-      DENOM=EUTLRNT(NI,1)+EUTLRNT(NI,2)
-      IF(DENOM.NE.0.0) THEN
-      PROBRNT(NI,1)=EUTLRNT(NI,1)/DENOM
-      PROBRNT(NI,2)=EUTLRNT(NI,2)/DENOM
+      DENOME=EUTLRNT(NI,1)+EUTLRNT(NI,2)
+      IF(DENOME.NE.0.0) THEN
+      PROBRNT(NI,1)=EUTLRNT(NI,1)/DENOME
+      PROBRNT(NI,2)=EUTLRNT(NI,2)/DENOME
       END IF
-      IF(CONRAC) THEN
-      PROBRNT(NI,1)=0.0
-      PROBRNT(NI,2)=1.0
-      ELSE
-      PROBRNT(NI,1)=1.0
-      PROBRNT(NI,2)=0.0
-      END IF
+C     IF(CONRAC) THEN
+C     PROBRNT(NI,1)=0.0
+C     PROBRNT(NI,2)=1.0
+C     ELSE
+C     PROBRNT(NI,1)=1.0
+C     PROBRNT(NI,2)=0.0
+C     END IF
+      DENOM=DENOM+DENOME
 C --------------------------------------------------------------
       IF(LDEBUG) THEN
       WRITE(26,444) IEQUIV(IZ),IEQUIV(JZ),KJZ,RNTLDATA(NI,2),
      *             PROBRNT(NI,1),PROBRNT(NI,2)
   444 FORMAT(1X,I4,2X,I4,2X,I5,3(1X,F8.5))
+C     WRITE(26,445) URNTSHL(NI),URNTTRN(NI),DENOME,DENOM
+  445 FORMAT(4(1X,F8.5))
       END IF
 C ---------------------------------------------------------------
       END DO
+      LSRNT=0.0
+      IF(DENOM.NE.0.0) LSRNT=DLOG(DENOM)  
 C
 C  AIR PASSENGER MODE CHOICE COMPUTATIONS
 C
-      UTLATXI=ACOEF(1)*HTIME2P(JZ)+ACOEF(2)*0.25+
-     *        ACOEF(3)*(265+245*HDIST2P(JZ))*LCPI+
+C....TAXI WAIT TIME 
+  102 CALL RANDOM(RANVAL)
+      YINDEX=IFIX(RANVAL*1000.0)
+      IF(YINDEX.LE.0) GO TO 102
+      ZINDEX=IFIX(ZHHD(7,IZ))
+      IF(ZINDEX.EQ.0) ZINDEX=1
+      TXWAIT=TXDIST(YINDEX,ZINDEX)
+      IF(LDEBUG) THEN
+      WRITE(26,340) C,RANVAL,YINDEX,ZINDEX,TXWAIT
+  340 FORMAT(/' TAXI WAIT TIME COMPUTATIONS - MARKET SEGMENT ',I1/
+     *        ' ---------------------------------------------'/
+     *        ' RANDOM VALUE=',F6.3/
+     *        ' YINDEX      =',I6/
+     *        ' ZINDEX      =',I6/
+     *        ' WAIT TIME   =',F6.2/)
+      END IF
+C
+      UTLATXI=ACOEF(1)*HTIME2P(JZ)+ACOEF(2)*TXWAIT+
+     *        ACOEF(3)*(ACOEF(7)+ACOEF(8)*HDIST2P(JZ))*LCPI+
+     *        ACOEF(5)*HDIST2P(JZ)+KCURB(C)+
      *        ACNST(1)
       CALL UBERCOMP(IZ,HTIME2P(JZ),HDIST2P(JZ),ACOEF(2),ACOEF(1),
      *              COSTUBER,ACCUBER,KWAIT)
       UTLAUBER=ACCUBER + ACOEF(3)*(COSTUBER*100.0)*LCPI +
+     *        ACOEF(5)*HDIST2P(JZ)+KCURB(C)+
      *        ACNST(10)
-      UTLARNT=ACOEF(1)*HTIME(JZ)+ACOEF(2)*RNTWAIT+
-     *        ACOEF(3)*ACOEF(4)*HDIST(JZ)*LCPI+
+      UTLARNT=ACOEF(2)*RNTWAIT+
+     *        ACOEF(3)*ACOEF(4)*HDIST(JZ)*LCPI+LSRNT+
+     *        ACOEF(6)*HDIST2P(JZ)+KPARK(C)+
      *        ACNST(2)
-      UTLALMO=ACOEF(1)*HTIME2P(JZ)+ACOEF(2)*0.25+
+      UTLALMO=ACOEF(1)*HTIME2P(JZ)+
      *        ACOEF(3)*(5682.18+138.99*HDIST2P(JZ))*LCPI+
+     *        ACOEF(5)*HDIST2P(JZ)+KCURB(C)+
      *        ACNST(3)
-      UTLADRP=ACOEF(1)*HTIME2P(JZ)+ACOEF(2)*0.25+
+      UTLADRP=ACOEF(1)*HTIME2P(JZ)+
      *        ACOEF(3)*OPCOST*HDIST2P(JZ)*LCPI+
+     *        ACOEF(5)*HDIST2P(JZ)+KCURB(C)+
      *        ACNST(4)
       UTLAONC=ACOEF(1)*HTIME2P(JZ)+ACOEF(2)*1.0+
      *        ACOEF(3)*(599.15+89.84*HDIST2P(JZ))*LCPI+
+     *        ACOEF(5)*HDIST2P(JZ)+KCURB(C)+
      *        ACNST(6)
       UTLAUPE=0.0
 C
@@ -2297,6 +2452,10 @@ C..WALK STATION #1/2
       WLKM2=STAZNE(3,SC2,JZ)
       UTIL(ICH)=WUTIL(imode,IST) + COEFF(7)*(WLKM2 + WLKM1) +
      *   (COEFF(50+C)*CFARE)/(LSUM1TRN*LSUM2RL)
+C.....AIR PASSENGER WALK TO UNION STATION AND UPX
+      IF((IEQUIV(OSTA(IMODE,IST)).EQ.GOUNION).AND.(.NOT.AIRTRN)) THEN
+      UTIL(ICH)=UTIL(ICH)+AWCR/(LSUM1TRN*LSUM2RL)
+      END IF
       IF(UTIL(ICH).LE.(-100.0)) THEN
       EUTIL(ICH)=0.0
       ELSE
@@ -2691,6 +2850,20 @@ C....CHECK FOR FEEDER BUS USE IN URBAN RAIL PATH
       IF(LBUSIND.GT.0) EUTIL(13)=0.0
       END IF
 C
+C   ELIMINATE PARK&RIDE ACCESS TO TTC SUBWAY FOR AIR PASSENGER MODEL
+C   RESTRICT  PARK&RIDE ACCESS TO GO RAIL TO ONLY STATION #1
+C
+      IF(AIRPASS.AND.(.NOT.AIRTRN)) THEN
+      PNRINDEX=5
+      IF(AIRPNR) PNRINDEX=6
+      DO NI=PNRINDEX,8
+      EUTIL(NI)=0.0
+      END DO
+      DO NI=17,20
+      EUTIL(NI)=0.0
+      END DO
+      END IF     
+C
 C   CALCULATE STATION LEVEL PROBABILITIES
 C
 C..WALK ACCESS - GO RAIL
@@ -2798,14 +2971,33 @@ C...KISS&RIDE ACCESS
 C...UBER ACCESS FOR AIR PASSENGERS
       UTILUBER=0.0
       EXPUBER=0.0
-      IF(IEQUIV(OSTA(1,3)).EQ.GOUNION.OR.
-     *   IEQUIV(OSTA(1,4)).EQ.GOUNION.AND.AIRPASS) THEN
+      IF(AIRPASS.AND.(.NOT.AIRTRN).AND.UBERAVAIL) THEN
       DESSTA=EQUIV(GOUNION)
+      DISTRATIO=HDIST2P(DESSTA)/10.0
       CALL UBERCOMP(IZ,HTIME2P(DESSTA),HDIST2P(DESSTA),ACOEF(2),
      *              ACOEF(1),COSTUBER,ACCUBER,KWAIT)
       UTILUBER=ACCUBER + ACOEF(3)*(COSTUBER*100.0)*LCPI +
-     *         ACNST(11)
+     *         ACNST(11)/(LSUM1TRN*LSUM2CR) - 
+     *         DISTRATIO/(LSUM1TRN*LSUM2CR)
       EXPUBER=EXP(UTILUBER)
+C..............................................................
+      IF(LDEBUG) THEN
+      WRITE(26,9070) DISTRATIO,HTIME2P(DESSTA),HDIST2P(DESSTA),
+     *               COSTUBER,ACCUBER,KWAIT,ACNST(11),UTILUBER,
+     *               EXPUBER
+ 9070 FORMAT(/1X,'SUMMARY OF UBER ACCESS TO UNION STATION'/
+     *        1X,'---------------------------------------'/
+     *        1X,'DISTRATIO =',F8.2/
+     *        1X,'HTIME2P   =',F8.2/
+     *        1X,'HDIST2P   =',F8.2/
+     *        1X,'COSTUBER  =',F8.2,' (DOLLARS)'/
+     *        1X,'ACCUBER   =',F8.4/
+     *        1X,'KWAIT     =',F8.2/
+     *        1X,'ACNST(11) =',F8.4/
+     *        1X,'UTILUBER  =',F8.4/
+     *        1X,'EXPUBER   =',E12.5/)    
+      END IF
+C.............................................................
       END IF
 C...PROBABILITIES
       CWPROB(3)=0.0
@@ -2827,7 +3019,7 @@ C...PROBABILITIES
       END IF
 C....................................................................
       IF(DEBUG) THEN
-      WRITE(26,9009) (UTIL(K),EUTIL(K),K=27,30)
+      WRITE(26,9009) (UTIL(K),EUTIL(K),K=27,30),UTILUBER,EXPUBER
  9009 FORMAT(/1X,'SUMMARY OF GO RAIL ACCESS UTILITIES'/
      *       1X,'-----------------------------------'/
      *       1X,'                     ',6X,'UTIL',10X,'EUTIL'/
@@ -2836,18 +3028,21 @@ C....................................................................
      *       1X,'WALK ACCESS TO GO RAIL ',F10.5,3X,E12.5/
      *       1X,'BUS  ACCESS TO GO RAIL ',F10.5,3X,E12.5//
      *       1X,'P&R  ACCESS TO GO RAIL ',F10.5,3X,E12.5/
-     *       1X,'K&R  ACCESS TO GO RAIL ',F10.5,3X,E12.5)
-      WRITE(26,9010) CWPROB(3),CBPROB(3),CPPROB(5),CKPROB(5),LSCR
+     *       1X,'K&R  ACCESS TO GO RAIL ',F10.5,3X,E12.5/
+     *       1X,'TNC  ACCESS TO GO RAIL ',F10.5,3X,E12.5/)
+      WRITE(26,9010) CWPROB(3),CBPROB(3),CPPROB(5),CKPROB(5),CUPROB,
+     *               LSCR
  9010 FORMAT(/1X,'SUMMARY OF GO RAIL ACCESS CHOICE PROB:'/
      *       1X,'---------------------------------------------'/
      *       1X,'WALK  ACCESS=',F8.5/ 
      *       1X,'BUS   ACCESS=',F8.5/
      *       1X,'P&R   ACCESS=',F8.5/
      *       1X,'K&R   ACCESS=',F8.5/
+     *       1X,'UBER  ACCESS=',F8.5/
      *       1X,'GO RAIL LOGSUM=',F10.5)
       END IF
       IF(LDEBUG) THEN
-      WRITE(26,9209) (UTIL(K),EUTIL(K),K=27,30),UTILUBER,EXPUBER
+C     WRITE(26,9209) (UTIL(K),EUTIL(K),K=27,30),UTILUBER,EXPUBER
  9209 FORMAT(/1X,'SUMMARY OF GO RAIL ACCESS UTILITIES'/
      *       1X,'-----------------------------------'/
      *       1X,'                     ',6X,'UTIL',10X,'EUTIL'/
@@ -2858,8 +3053,8 @@ C....................................................................
      *       1X,'P&R  ACCESS TO GO RAIL ',F10.5,3X,E12.5/
      *       1X,'K&R  ACCESS TO GO RAIL ',F10.5,3X,E12.5//
      *       1X,'UBER ACCESS TO GO RAIL ',F10.5,3X,E12.5)
-      WRITE(26,9210) CWPROB(3),CBPROB(3),CPPROB(5),CKPROB(5),
-     *               CUPROB,LSCR
+C     WRITE(26,9210) CWPROB(3),CBPROB(3),CPPROB(5),CKPROB(5),
+C    *               CUPROB,LSCR
  9210 FORMAT(/1X,'SUMMARY OF GO RAIL ACCESS CHOICE PROB:'/
      *       1X,'---------------------------------------------'/
      *       1X,'WALK  ACCESS=',F8.5/ 
@@ -3226,16 +3421,22 @@ C     AIRTPROB(PARKIND,JZIND,6)=TRNPROB(6)   !High Level BRT
 C ----------------------------------------------------
       IF(LDEBUG) THEN                             
       WRITE(26,8047) IEQUIV(IZ),PARKIND,IEQUIV(JZ),JZIND
- 8047 FORMAT(/' IZ=',I4,' PARKIND=',I2,' JZ=',I4,
+ 8047 FORMAT(/' TRANSIT PROBABILITIES & STATION VALUES'/
+     *       '      FOR PARKING LOT CHOICE MODEL'/
+     *       '  --------------------------------------'/
+     *       ' IZ=',I4,' PARKIND=',I2,' JZ=',I4,
      *       ' JZIND=',I2)
       DO K=1,2
-      WRITE(26,8148) K,
-     *        AIRSTAP(PARKIND,JZIND,K),AIRSTAA(PARKIND,JZIND,K)
- 8148 FORMAT(1X,I2,' OSTA=',I4,' ASTA=',I4)
+      WRITE(26,8148) NAME(K),
+     *        IEQUIV(AIRSTAP(PARKIND,JZIND,K)),
+     *        STANAME(AIRSTAP(PARKIND,JZIND,K)-MAX_IZONES),
+     *        IEQUIV(AIRSTAA(PARKIND,JZIND,K)),
+     *        STANAME(AIRSTAA(PARKIND,JZIND,K)-MAX_IZONES)
+ 8148 FORMAT(1X,A13,' OSTA=',I4,1X,A27,' ASTA=',I4,1X,A37)
       END DO
-      DO K=1,6
-      WRITE(26,8152) K,AIRTPROB(PARKIND,JZIND,K)
- 8152 FORMAT(1X,I2,'  TRNPROB=',F8.3)
+      DO K=1,5
+      WRITE(26,8152) K,AIRTPROB(PARKIND,JZIND,K),TNAME(K+1)
+ 8152 FORMAT(1X,I2,'  TRNPROB=',F8.3,1X,A13)
       END DO
       WRITE(26,8153) AIRTPROB(PARKIND,JZIND,7)
  8153 FORMAT(1X,' 7','    LSTRN=',F8.3//)
@@ -3272,14 +3473,20 @@ C     AIRRPROB(RNTLIND,JZIND,6)=TRNPROB(6)   !High Level BRT
 C ----------------------------------------------------
       IF(LDEBUG) THEN                             
       WRITE(26,8045) IEQUIV(IZ),RNTLIND,IEQUIV(JZ),JZIND
- 8045 FORMAT(/' IZ=',I4,' RNTLIND=',I2,' JZ=',I4,
+ 8045 FORMAT(/' TRANSIT PROBABILITIES & STATION VALUES'/
+     *       '      FOR RENTAL CAR LOT CHOICE MODEL'/
+     *       '  --------------------------------------'/
+     *       ' IZ=',I4,' RNTLIND=',I2,' JZ=',I4,
      *       ' JZIND=',I2)
       DO K=1,2
-      WRITE(26,8148) K,
-     *        AIRRNTP(RNTLIND,JZIND,K),AIRRNTA(RNTLIND,JZIND,K)
+      WRITE(26,8148) NAME(K),
+     *        IEQUIV(AIRRNTP(RNTLIND,JZIND,K)),
+     *        STANAME(AIRRNTP(RNTLIND,JZIND,K)-MAX_IZONES),
+     *        IEQUIV(AIRRNTA(RNTLIND,JZIND,K)),
+     *        STANAME(AIRRNTA(RNTLIND,JZIND,K)-MAX_IZONES)
       END DO
-      DO K=1,6
-      WRITE(26,8152) K,AIRRPROB(RNTLIND,JZIND,K)
+      DO K=1,5
+      WRITE(26,8152) K,AIRRPROB(RNTLIND,JZIND,K),TNAME(K+1)
       END DO
       WRITE(26,8153) AIRRPROB(RNTLIND,JZIND,7)
       END IF
@@ -3388,9 +3595,10 @@ C      IF((.NOT.AIRTRN).AND.(AIR)) THEN
       IF(UTLARNT.NE.0.0) EUTLAIR(2)=EXP(UTLARNT)
       EUTLAIR(3)=EXP(UTLALMO)
       EUTLAIR(4)=EXP(UTLADRP)
-      IF(LSLOT.NE.0.0) EUTLAIR(5)=EXP(LSLOT+ACNST(5))
+      IF(LSLOT.NE.0.0) 
+     * EUTLAIR(5)=EXP(LSLOT+KPARK(C)+ACNST(5))
       EUTLAIR(6)=EXP(UTLAONC)
-      IF(LSTRN(C).NE.0.0) EUTLAIR(7)=EXP(LSTRN(C)+ACNST(7))
+      IF(LSTRN(C).NE.0.0) EUTLAIR(7)=EXP(LSUM1TRN*LSTRN(C)+ACNST(7))
       EUTLAIR(8)=EXP(UTLAUBER)
       IF(UBERIN) EUTLAIR(8)=0.5*EUTLAIR(8)
 C...COMPUTE PRIVATE SHARES & LOGSUM
@@ -3522,17 +3730,17 @@ C ---------------------------------------------------------
      *              TUBER
   452 FORMAT(//' AIR PASSENGER TRIP VALUES'/
      *       ' -------------------------'/
-     *       ' ORIGIN  =',I8/
-     *       ' DEST    =',I8/
-     *       ' PERTRP  =',F8.2/
-     *       ' TRANSIT =',F8.2/
-     *       ' DROP-OFF=',F8.2/
-     *       ' LIMO    =',F8.2/
-     *       ' RENTAL  =',F8.2/
-     *       ' TAXI    =',F8.2/
-     *       ' PARKED  =',F8.2/
-     *       ' ON-CALL =',F8.2/
-     *       ' TNC     =',F8.2)
+     *       ' ORIGIN  =',I10/
+     *       ' DEST    =',I10/
+     *       ' PERTRP  =',F10.4/
+     *       ' TRANSIT =',F10.4/
+     *       ' DROP-OFF=',F10.4/
+     *       ' LIMO    =',F10.4/
+     *       ' RENTAL  =',F10.4/
+     *       ' TAXI    =',F10.4/
+     *       ' PARKED  =',F10.4/
+     *       ' ON-CALL =',F10.4/
+     *       ' TNC     =',F10.4)
       END IF
 C --------------------------------------------------------------
       END IF
@@ -4036,6 +4244,8 @@ C
 C...AIR PASSENGER SUMMARY
 C
       IF(AIRPASS) THEN
+      DIZ=IEQUIV(IZ)
+      DIZ=DEQUIV(DIZ)
       AESUM(1)=AESUM(1)+TDRV0
       AESUM(2)=AESUM(2)+TDRV2
       AESUM(3)=AESUM(3)+TDRV3
@@ -4047,6 +4257,17 @@ C
       AESUM(10)=AESUM(10)+TTRAN
       AESUM(11)=AESUM(11)+TUBER
       AESUM(12)=AESUM(12)+PERTRP
+      AESUM2(DIZ,1)=AESUM2(DIZ,1)+TDRV0
+      AESUM2(DIZ,2)=AESUM2(DIZ,2)+TDRV2
+      AESUM2(DIZ,3)=AESUM2(DIZ,3)+TDRV3
+      AESUM2(DIZ,5)=AESUM2(DIZ,5)+TDROP
+      AESUM2(DIZ,6)=AESUM2(DIZ,6)+TLIMO
+      AESUM2(DIZ,7)=AESUM2(DIZ,7)+TRNTL
+      AESUM2(DIZ,8)=AESUM2(DIZ,8)+TTAXI
+      AESUM2(DIZ,9)=AESUM2(DIZ,9)+TONCL
+      AESUM2(DIZ,10)=AESUM2(DIZ,10)+TTRAN
+      AESUM2(DIZ,11)=AESUM2(DIZ,11)+TUBER
+      AESUM2(DIZ,12)=AESUM2(DIZ,12)+PERTRP
       AIRTRP(JZ,1)=AIRTRP(JZ,1)+TDROP
       AIRTRP(JZ,2)=AIRTRP(JZ,2)+TLIMO
       AIRTRP(JZ,3)=AIRTRP(JZ,3)+TRNTL
@@ -4055,7 +4276,7 @@ C
       AIRTRP(JZ,6)=AIRTRP(JZ,6)+TUBER
       END IF
 C
-C  ALLOCATE TO LAX PARKING LOTS
+C  ALLOCATE TO PEARSON PARKING LOTS
 C
       IF(AIR.AND.(.NOT.AIRTRN).AND.AJZ.GT.0) THEN
       TPRKSHL=0.0
@@ -4070,6 +4291,13 @@ C
       LOTRIPS(NI,2)=LOTRIPS(NI,2)+DENOM*EPROBLOT(NI,1)
       LOTRIPS(NI,3)=LOTRIPS(NI,3)+DENOM*EPROBLOT(NI,2)
       LOTRIPS(NI,4)=LOTRIPS(NI,4)+DENOM*EPROBLOT(NI,3)
+C
+C  STORE AUTO TRIPS FROM ORIGIN ZONE TO LOT
+C
+      LJZ=PEQUIV(NI)
+      LOTTRP(LJZ,1)=LOTTRP(LJZ,1)+TDRV0*PROBLOT(NI)
+      LOTTRP(LJZ,2)=LOTTRP(LJZ,2)+TDRV2*PROBLOT(NI)
+      LOTTRP(LJZ,3)=LOTTRP(LJZ,3)+TDRV3*PROBLOT(NI)   
 C
 C  STORE PEARSON PARKING LOT - TRANSIT TRIPS
 C
@@ -4219,6 +4447,14 @@ C..TTC SUBWAY STATION ACCESS/EGRESS SUMMARY MATRIX FOR ACCESS TO GO RAIL TRIPS
       if(orista.gt.0.and.dessta.gt.0) then
       stasum4(orista,1)=stasum4(orista,1)+ tcrb1
       stasum4(dessta,2)=stasum4(dessta,2)+ tcrb1
+        if(tcrb1.gt.0.and.(.not.airtrn).and.airpass) then
+        ttcgor(iz)=ttcgor(iz)+tcrb1
+        if(tcrb1.gt.maxvalue) then
+        maxiz=iz
+        maxjz=jz
+        maxvalue=tcrb1
+        end if
+        end if
       end if
       end if
 C..TTC SUBWAY STATION SUMMARY MATRIX
@@ -4344,6 +4580,11 @@ C......GO RAIL STATION-TO-STATION
       crss(orista,dessta)=crss(orista,dessta) + sngl(tcrk4)
       call statsum(maxgln,orista,dessta,tcrk4,gorail)
       call upxsum(orista,dessta,tcrk4,upxsta,stasum6)
+      orista=equiv(gounion)-MAX_IZONES
+      dessta=equiv(pearson)-MAX_IZONES
+      crss(orista,dessta)=crss(orista,dessta) + sngl(tuberacc)
+      call statsum(maxgln,orista,dessta,tuberacc,gorail)
+      call upxsum(orista,dessta,tuberacc,upxsta,stasum6)
 C.....TTC SUBWAY STATION-TO-STATION EGRESS FOR GO RAIL TRIPS
       orista=osta3(1,1)-MAX_IZONES
       dessta=asta3(1,1)-MAX_IZONES
@@ -4929,6 +5170,16 @@ C
       WRITE(192) IIZ,(AUTTRP(K,12),K=1,4000)
       END IF
 C
+C  OUTPUT ZONE TO PARKING LOT AIR PASSENGER TRIPS
+C
+      IF(AIR.AND.AIRPASS.AND.(.NOT.AIRTRN).AND.TRIPSOUT) THEN
+      IIZ=IZ
+      DO T=1,3
+      FILENO=336+T
+      WRITE(FILENO) IIZ,(LOTTRP(K,T),K=1,4000)
+      END DO
+      END IF
+C
 C  OUTPUT TRANSIT ZONE LEVEL MATRICES
 C
       IF(TRIPSOUT.AND.(.NOT.AIRTRN).AND.(.NOT.SPEVENT).AND.
@@ -4975,25 +5226,25 @@ C     SPECIAL EVENT TRIP DISTRIBUTION MODEL
 C
       IF(SPEVENT) THEN
       DO JZ=1,MAXSP
-C     WRITE(26,11113) JZ,SPZONE(JZ)
-11113 FORMAT(' JZ=',I2,' SPZONE=',I5)
+      IF(DEBUG) WRITE(26,9049) JZ,SPZONE(JZ)
+ 9049 FORMAT(' JZ=',I2,' SPZONE=',I5)
       DO IZ=1,MAX_IZONES
       SPPERSON(IZ,JZ)=ZHHD(16,IZ)*EXP(0.0126*SPLOGSUM(IZ,JZ))*100.0
-C     WRITE(26,11112) IEQUIV(IZ),ZHHD(16,IZ),SPPERSON(IZ,JZ),
-C    *                SPLOGSUM(IZ,JZ)
-11112 FORMAT(' IZ=',I5,' ZHHD(16)=',F10.5,' SPPERSON=',F10.5,
+      IF(DEBUG) WRITE(26,9050) IEQUIV(IZ),ZHHD(16,IZ),SPPERSON(IZ,JZ),
+     *                SPLOGSUM(IZ,JZ)
+ 9050 FORMAT(' IZ=',I5,' ZHHD(16)=',F10.5,' SPPERSON=',F10.5,
      *       ' SPLOGSUM=',F10.5)
       SPTOTAL(JZ)=SPTOTAL(JZ)+SPPERSON(IZ,JZ)
       END DO
       END DO
       DO JZ=1,MAXSP
-C     WRITE(26,11114) SPZONE(JZ),SPTOTAL(JZ),SPDATA(JZ,1)
-11114 FORMAT(' SPZONE=',I5,' SPTOTAL=',F9.1,' SPDATA=',F8.0)
+      IF(DEBUG) WRITE(26,9051) SPZONE(JZ),SPTOTAL(JZ),SPDATA(JZ,1)
+ 9051 FORMAT(' SPZONE=',I5,' SPTOTAL=',F9.1,' SPDATA=',F8.0)
       SPTOTAL(JZ)=SPDATA(JZ,1)/SPTOTAL(JZ)
       END DO 
 C...NORMALIZE PERSON TRIPS TO ATTENDANCE TOTAL
       DO JZ=1,MAXSP
-C     WRITE(26,11113) JZ,SPZONE(JZ)
+      IF(DEBUG) WRITE(26,9049) JZ,SPZONE(JZ)
       DO IZ=1,MAX_IZONES
       SPPERSON(IZ,JZ)=SPPERSON(IZ,JZ)*SPTOTAL(JZ)*ATTFCT
       DIZ=DEQUIV(IEQUIV(IZ))
@@ -5021,6 +5272,7 @@ C...SUMMARIZE SP PERSON TRIPS BY DISTRICT
      *        ' --------------------------------------------'/)
       tesum=0.0
       aesum=0.0
+      aesum2=0.0
       stasum=0.0
       stasum2=0.0
       stasum3=0.0
@@ -5038,7 +5290,9 @@ C...SUMMARIZE SP PERSON TRIPS BY DISTRICT
       avlttc=0.0
       estcbd=0.0  
       ptrip=0.0
+      pertrips=0.0
       call fileopen
+      call filewrite
       eventsp=.true.
       spevent=.false.
       go to 1000
@@ -5048,7 +5302,7 @@ C     VISITOR TRIP DISTRIBUTION MODEL
 C
       IF(VISITOR) THEN
       DO JZ=1,MAXSP
-C     WRITE(26,11113) JZ,SPZONE(JZ)
+      IF(DEBUG) WRITE(26,9049) JZ,SPZONE(JZ)
       DO IZ=1,MAX_IZONES
       IF(ZHHD(1,IZ).LE.0.0) CYCLE
       UTILVS=0.0
@@ -5056,16 +5310,16 @@ C     WRITE(26,11113) JZ,SPZONE(JZ)
       UTILVS=0.21710*SPLOGSUM(IZ,JZ)+KVIS(JZ)
       PROBVS=EXP(UTILVS)/(EXP(UTILVS)+1.0)
       SPPERSON(IZ,JZ)=ZHHD(1,IZ)*PROBVS*2.77*2.0
-C     WRITE(26,11115) IEQUIV(IZ),UTILVS,PROBVS,ZHHD(1,IZ),
-C    *                SPPERSON(IZ,JZ),SPLOGSUM(IZ,JZ)
-11115 FORMAT(' IZ=',I5,' UTILVS=',F10.5,' PROBVS=',F10.5,
+      IF(DEBUG) WRITE(26,9052) IEQUIV(IZ),UTILVS,PROBVS,ZHHD(1,IZ),
+     *                SPPERSON(IZ,JZ),SPLOGSUM(IZ,JZ)
+ 9052 FORMAT(' IZ=',I5,' UTILVS=',F10.5,' PROBVS=',F10.5,
      *       ' ZHHD(1)=',F10.1,' SPPERSON=',F10.5,
      *       ' SPLOGSUM=',F10.5)
       SPTOTAL(JZ)=SPTOTAL(JZ)+SPPERSON(IZ,JZ)
       END DO
       END DO
       DO JZ=1,MAXSP
-C     WRITE(26,11114) SPZONE(JZ),SPTOTAL(JZ),SPDATA(JZ,1)
+      IF(DEBUG) WRITE(26,9051) SPZONE(JZ),SPTOTAL(JZ),SPDATA(JZ,1)
       SPTOTAL(JZ)=SPDATA(JZ,1)/SPTOTAL(JZ)
       END DO 
 C...NORMALIZE PERSON TRIPS TO ATTENDANCE TOTAL
@@ -5094,6 +5348,7 @@ C...SUMMARIZE VISITOR PERSON TRIPS BY DISTRICT
      *        ' --------------------------------------'/)
       tesum=0.0
       aesum=0.0
+      aesum2=0.0
       stasum=0.0
       stasum2=0.0
       stasum3=0.0
@@ -5111,7 +5366,9 @@ C...SUMMARIZE VISITOR PERSON TRIPS BY DISTRICT
       avlttc=0.0
       estcbd=0.0  
       ptrip=0.0
+      pertrips=0.0
       call fileopen
+      call filewrite
       eventsp=.true.
       visitor=.false.
       go to 1000
@@ -5123,6 +5380,7 @@ C
 	    airtrn=.false.
       tesum=0.0
       aesum=0.0
+      aesum2=0.0
       stasum=0.0
       stasum2=0.0
       stasum3=0.0
@@ -5140,7 +5398,9 @@ C
       avlttc=0.0
       estcbd=0.0  
       ptrip=0.0
+      pertrips=0.0
       call fileopen
+      call filewrite
 	    go to 1000
 	    end if
 C
@@ -5194,7 +5454,7 @@ C     IF(VSKIM) GO TO 8886
      *          ' TRANSIT','   MOTORIZED','    BUS  ','   TOTAL  '/
      *       1X,'---------','---------','---------','----------',
      *          '----------','----------','----------','----------') 
-      WRITE(173, 7100)    
+      IF(CSVRPT) WRITE(173, 7100)    
  7100 FORMAT('TABLE=1.1')       
       DO C=1,NCATS
       TDRV0=TESUM(21,C)+TESUM(22,C)
@@ -5512,16 +5772,17 @@ C
       KS=K+MAX_IZONES
       IF(.NOT.AIRPASS) STASUM5(K,2)=0.0
       STASUM2(K,4)=STASUM2(K,1)+STASUM2(K,2)+STASUM2(K,3)+STASUM5(K,2)
+      DENOM=STASUM2(K,1)+STASUM5(K,2)
       TTWLK=TTWLK+STASUM2(K,1)+STASUM5(K,2)
       TTBUS=TTBUS+STASUM2(K,2)
       TTPNR=TTPNR+STASUM2(K,3)
       TTOTAL=TTOTAL+STASUM2(K,4)
       IF(STASUM2(K,4).GT.0.1) THEN
-	    WRITE(26,7024) IEQUIV(KS),STANAME(K),
-     *                  (STASUM2(K,L),L=1,4)
+	    WRITE(26,7024) IEQUIV(KS),STANAME(K),DENOM,
+     *                  (STASUM2(K,L),L=2,4)
  7024 FORMAT(2X,I4,3X,A29,1X,4F8.0)
-      IF(CSVRPT) WRITE(173,7052) IEQUIV(KS),STANAME(K),
-     *                  (STASUM2(K,L),L=1,4)
+      IF(CSVRPT) WRITE(173,7052) IEQUIV(KS),STANAME(K),DENOM,
+     *                  (STASUM2(K,L),L=2,4)
       END IF
       END DO
       WRITE(26,7022) TTWLK,TTBUS,TTPNR,TTOTAL
@@ -5569,9 +5830,9 @@ C
      *       1X,' STATION ','                              ',
      *          '        ','        ',/,
      *       1X,' NUMBER ','        STATION NAME           ',
-     *          ' ACCESS ',' EGRESS ','  TOTAL ',/,
+     *          ' ACCESS ',' EGRESS ','  TOTAL  AVL',/,
      *       1X,'--------','-------------------------------',
-     *          '--------','--------','------  ')
+     *          '--------','--------','-------  ---')
       IF(CSVRPT) WRITE(173, 7112)
  7112 FORMAT('TABLE=8.4')
       DO K=1,MAX_STATIONS
@@ -5580,10 +5841,12 @@ C
       TTWLK=TTWLK+STASUM4(K,1)
       TTBUS=TTBUS+STASUM4(K,2)
       TTOTAL=TTOTAL+STASUM4(K,3)
-      IF(STASUM4(K,3).GT.0.1) THEN
-	    WRITE(26,7026) IEQUIV(KS),STANAME(K),
-     *                  (STASUM4(K,L),L=1,3)
-	    IF(CSVRPT) WRITE(173,7052) IEQUIV(KS),STANAME(K),
+      IF(STANUM(K).EQ.2) THEN
+	    WRITE(26,7030) IEQUIV(KS),STANAME(K),
+     *                  (STASUM4(K,L),L=1,3),ANS(TTCIND(K)+1)
+ 7030 FORMAT(2X,I4,3X,A29,1X,3F8.0,2X,A3)
+	    IF(CSVRPT.AND.STASUM4(K,3).GT.0.1) 
+     *      WRITE(173,7052) IEQUIV(KS),STANAME(K),
      *                  (STASUM4(K,L),L=1,3)
       END IF
       END DO
@@ -5592,7 +5855,7 @@ C
       TTWLK=0.0
       TTBUS=0.0
       TTOTAL=0.0
-C     WRITE(26,7067)
+      WRITE(26,7067)
  7067 FORMAT(//,30X,'R E P O R T   5E',/,
      *          20X,
      *          'SUMMARIZE UPX STATION LEVEL VOLUMES',//,
@@ -5609,11 +5872,11 @@ C     WRITE(26,7067)
       TTBUS=TTBUS+STASUM6(K,2)
       TTOTAL=TTOTAL+DENOM
       IF(DENOM.GT.0.1) THEN
-C     WRITE(26,7026) IEQUIV(KS),STANAME(K),
-C    *                  (STASUM6(K,L),L=1,2),DENOM
+      WRITE(26,7026) IEQUIV(KS),STANAME(K),
+     *                  (STASUM6(K,L),L=1,2),DENOM
       END IF
       END DO
-C     WRITE(26,7022) TTWLK,TTBUS,TTOTAL
+      WRITE(26,7022) TTWLK,TTBUS,TTOTAL
       WRITE(26,7028)
  7028 FORMAT(//,30X,'R E P O R T   6A',/,
      *          20X,
@@ -5932,7 +6195,7 @@ C
       end do
       end if
 C
-C     SELF CALIBRATION ANALYSIS
+C     SELF CALIBRATION ANALYSIS - RESIDENT TRIP PURPOSES
 C
       if(calib) then
       iter=iter+1
@@ -5963,6 +6226,7 @@ C
       end if       
       if(iter.lt.niter.and.(.not.capres)) then
        call fileopen
+       call filewrite
        if(ccode(27).or.ccode(28)) then
        stasta=0.0
        imode=1
@@ -5998,11 +6262,38 @@ C------------------------------------------------------------------
       NI=EQUIV(9863)-MAX_IZONES
       DENOM=AESUM(10)-STASUM2(NI,4)
       PNRTRP(1)=AESUM(1)+AESUM(2)+AESUM(3)
+      IF(AIRPASS.AND.(.NOT.AIRTRN).AND.AIRCALIB) THEN
       OPEN(156,FILE=FAIRCALIB,STATUS='UNKNOWN',FORM='FORMATTED')
+      TTWLK=0.0
+      TTBUS=0.0
+      TTPNR=0.0
+      TTKNR=0.0
+      TTUBER=0.0
+      DO K=1,MAX_STATIONS
+      TTWLK=TTWLK+STASUM(K,1)
+	    TTBUS=TTBUS+STASUM(K,2)
+	    TTPNR=TTPNR+STASUM(K,3)
+	    TTKNR=TTKNR+STASUM(K,4)
+	    TTUBER=TTUBER+STASUM5(K,1)
+	    END DO
+	    KS=EQUIV(GOUNION)-MAX_IZONES
+      TUNION=STASUM(KS,1)+STASUM(KS,2)+STASUM(KS,3)+STASUM(KS,4)+
+     *            STASUM5(KS,1)
+	    KS=EQUIV(BLOOR)-MAX_IZONES
+      TBLOOR=STASUM(KS,1)+STASUM(KS,2)+STASUM(KS,3)+STASUM(KS,4)+
+     *            STASUM5(KS,1)
+	    KS=EQUIV(WESTON)-MAX_IZONES
+      TWESTON=STASUM(KS,1)+STASUM(KS,2)+STASUM(KS,3)+STASUM(KS,4)+
+     *            STASUM5(KS,1)
+      CI=NCATS+1
+      TBUS=TESUM(37,CI)+TESUM(38,CI)
       WRITE(156,9734) AESUM(1),AESUM(2),AESUM(3),AESUM(5),
      *                AESUM(7),AESUM(6),AESUM(8),AESUM(9),
      *                DENOM,AESUM(11),STASUM2(NI,4),
-     *                AESUM(12),PNRTRP(1),AESUM(10)
+     *                AESUM(12),PNRTRP(1),AESUM(10),
+     *                TTWLK,TTUBER,TTPNR,TTKNR,TTBUS,
+     *                TUNION,TBLOOR,TWESTON,
+     *                TESUM(4,CI),TESUM(5,CI),TBUS
  9734 FORMAT('DRIVE_ALONE,',F8.1/
      *       '2_PERSON,',F8.1/
      *       '3+_PERSON,',F8.1/
@@ -6016,7 +6307,33 @@ C------------------------------------------------------------------
      *       'UPX,',F8.1/
      *       'TOTAL,',F8.1/
      *       'TOT_DRIVE,',F8.1/
-     *       'TOT_TRN,',F8.1)
+     *       'TOT_TRN,',F8.1/
+     *       'UPX_WALK,',F8.1/
+     *       'UPX_UBER,',F8.1/
+     *       'UPX_DRIVE,',F8.1/
+     *       'UPX-SHARED_RIDE,',F8.1/
+     *       'UPX_TTC,',F8.1/
+     *       'UNION,',F8.1/
+     *       'BLOOR,',F8.1/
+     *       'WESTON,',F8.1/
+     *       'TTC_SUBWAY,',F8.1/
+     *       'GO_BUS,',F8.1/
+     *       'BUS_STREETCAR,',F8.1)
+      CLOSE(156,STATUS='KEEP')
+      WRITE(342,9735)
+ 9735 FORMAT('DISTRICT,DRIVE_ALONE,2_PERSON,3_PERSON,DROPOFF',
+     *       ',RENTAL,LIMO,TAXI,ON_CALL,TRANSIT,UBER,TOTAL')
+      DO K=1,MAXPD
+      DO K1=1,12
+      AESUM2((MAXPD+1),K1)=AESUM2((MAXPD+1),K1)+AESUM2(K,K1)
+      END DO
+      END DO
+      DO K=1,(MAXPD+1)
+      WRITE(342,9736) DNAME(K),(AESUM2(K,K1),K1=1,3),
+     *               (AESUM2(K,K2),K2=5,12)
+ 9736 FORMAT(A35,11(',',F10.0))
+      END DO
+      END IF
       END IF
 C--------------------------------------------------------------------------
 C
@@ -6058,20 +6375,33 @@ C
       SHDPRICE=LOG(1.0/VCRATIO)
       CNVRGE=.FALSE.
       END IF
-      PRKDATA(NI,19)=PRKDATA(NI,19)+0.5*SHDPRICE
+      IF(PRKDATA(NI,19).NE.0.0.AND.VCRATIO.LT.1.0) THEN
+      SHDPRICE=LOG(1.0/VCRATIO)
+      IF(VCRATIO.LT.0.8) CNVRGE=.FALSE.
+      END IF
+      PRKDATA(NI,19)=PRKDATA(NI,19)+ADJFCT*SHDPRICE
       WRITE(26,45) IEQUIV(KJZ),(LOTRIPS(NI,K),K=1,4),PSPACES,VCRATIO,
      *             PRKDATA(NI,19)
    45 FORMAT(I8,5(2X,F8.1),2X,F6.2,2X,F8.5,2X,F8.5)
-      WRITE(159,46) IEQUIV(KJZ),(LOTRIPS(NI,K),K=1,4),PSPACES,VCRATIO,
-     *              PRKDATA(NI,19)
-   46 FORMAT(I4,5(',',F8.1),',',F6.2,',',F10.5)   
+C
+      IF(SPRICE) THEN
+      WRITE(159,46) IEQUIV(KJZ),SAVDATA(NI,1),TYPEEG(NI),
+     *              (SAVDATA(NI,K),K=3,18),PRKDATA(NI,19)
+   46 FORMAT(I4,',',F2.0,',',A2,16(',',F8.1),',',F10.5)
+      ELSE
+      VSPACES=LOTRIPS(NI,1)/2.0
+      WRITE(159,48) IEQUIV(KJZ),SAVDATA(NI,1),TYPEEG(NI),
+     *              (SAVDATA(NI,K),K=3,18),VSPACES
+   48 FORMAT(I4,',',F2.0,',',A2,16(',',F8.1),',',F10.0)
+      END IF      
+C
       PNRTRP(1)=PNRTRP(1)+LOTRIPS(NI,1)
       PNRTRP(2)=PNRTRP(2)+LOTRIPS(NI,2)
       PNRTRP(3)=PNRTRP(3)+LOTRIPS(NI,3)
       PNRTRP(4)=PNRTRP(4)+LOTRIPS(NI,4)
       PNRTRP(5)=PNRTRP(5)+PSPACES
    44 CONTINUE
-      VCRATIO=PNRTRP(1)/(2*PNRTRP(5))
+      VCRATIO=PNRTRP(1)/(2*PNRTRP(5)*AIROCC)
       WRITE(26,345) (PNRTRP(K),K=1,5),VCRATIO
   345 FORMAT(/2X,'TOTAL',1X,5(2X,F8.1),2X,F6.2)
       PNRTRP(1)=0.0
@@ -6094,7 +6424,7 @@ C
       DO 3837 JZ=1,50
       K1=AEQUIV(JZ)
       DO 3839 K=1,5
-      IF(LOTTRN(NI,JZ,K).GT.0.001) WRITE(26,336) IEQUIV(KJZ),IEQUIV(K1),
+      IF(LOTTRN(NI,JZ,K).GT.0.1) WRITE(26,336) IEQUIV(KJZ),IEQUIV(K1),
      *    LOTTRN(NI,JZ,K),K,TNAME(K+1)
       PNRTRP(10)=PNRTRP(10)+LOTTRN(NI,JZ,K)
       PNRTRP(K)=PNRTRP(K)+LOTTRN(NI,JZ,K)
@@ -6106,24 +6436,12 @@ C
  3845 FORMAT(/19X,F8.2//,
      *  10X,'  PEARSON PARKING LOT CHOICE'/
      *  10X,'  PRIMARY MODE TRANSIT CHOICE RESULTS'//
-     *       1X,'GO RAIL        =',F8.2/
-     *       1X,'TTC SUBWAY     =',F8.2/
-     *       1X,'GO BUS         =',F8.2/
-     *       1X,'BUS/STREETCAR  =',F8.2/
-     *       1X,'RAPID BUS      =',F8.2/)
+     *       1X,'GO RAIL        =',F8.1/
+     *       1X,'TTC SUBWAY     =',F8.1/
+     *       1X,'GO BUS         =',F8.1/
+     *       1X,'BUS/STREETCAR  =',F8.1/
+     *       1X,'RAPID BUS      =',F8.1/)
       END IF
-c     open(280,file='upx_non_airport.csv',status='unknown',
-c    *         form='formatted')
-      do k1=1,max_stations
-      do k2=1,max_stations
-      if(upxsta(k1,k2).gt.0.01) then
-c     write(280,8033) iequiv(k1+max_izones),staname(k1),
-c    *                iequiv(k2+max_izones),staname(k2),
-c    *                upxsta(k1,k2)
- 8033 format(i5,',',a37,',to,',i5,',',a37,',',f8.2)
-      end if
-      end do
-      end do
 C     
 C     STATION CAPACITY RESTRAINT
 C
@@ -6163,13 +6481,64 @@ C
       lottrn=0.0
       lotrips=0.0
       aesum=0.0
+      aesum2=0.0
       if(iter.le.citer.and.(.not.cnvrge)) then
       write(26,7063) iter
  7063 format(/' Pearson Parking Lot Capacity Restraint Iteration ',i2/
      *        ' -------------------------------------------------'/)
       write(*,7063) iter
       call fileopen
+      call filewrite
       cnvrge=.true.
+      go to 1000
+      end if
+      end if
+c
+      if(airpass.and.aircalib) then
+c.....air passenger trip productions by district
+      write(26,7064)
+ 7064 format(/1X,'AIR PASSENGER PERSON TRIPS BY DISTRICT'/
+     *        1X,'--------------------------------------'/
+     *        1X,'              DISTRICT                  TRIPS'/
+     *        1X,'-----------------------------------  ----------')
+      do k=1,(maxpd+1)
+      write(26,7068) dname(k),pertrips(k)
+ 7068 format(a35,2x,f10.2)
+      end do
+      end if
+C
+C     SELF CALIBRATION ANALYSIS - AIR PASSENGER TRIP PURPOSES
+C
+      if(airpass.and.aircalib) then
+      write(26,7032) iter
+      write(*,7032) iter
+      write(100,7032) iter
+      call acalib
+      tesum=0.0
+      stasum=0.0
+      stasum2=0.0
+      stasum3=0.0
+      stasum4=0.0
+      stasum5=0.0
+      stasum6=0.0
+      ttrip=0.0
+      gbusivt=0.0
+      gbustivt=0.0
+      gbusrat=0.0
+      rapdrat=0.0
+      txfers=0.0
+      tottrn=0.0
+      nonmot=0.0
+      avlttc=0.0
+      estcbd=0.0  
+      ptrip=0.0  
+      lottrn=0.0
+      lotrips=0.0
+      aesum=0.0
+      aesum2=0.0 
+      if(iter.lt.niter) then
+       call fileopen
+       call filewrite
       go to 1000
       end if
       end if
@@ -6356,12 +6725,6 @@ C
       WRITE(26,8887) IJPAIRS(7)
  8887 FORMAT(' TOTAL             =',I8)
       END IF
-C      if(maxiz.gt.0.and.maxjz.gt.0) then
-C      write(26,77777) iequiv(maxiz),iequiv(maxjz),maxvalue    
-C      else
-C      write(26,77777) maxiz,maxjz,maxvalue
-C77777 format(//' maxiz=',i5,' maxjz=',i5,' maxvalue=',f14.4//)
-C      end if
       CLOSE(140,STATUS='DELETE')
       CLOSE(190,STATUS='DELETE')
       CALL GETTIM(IHR,IMIN,ISEC,I100)

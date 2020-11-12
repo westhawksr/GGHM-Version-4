@@ -1,7 +1,7 @@
 C***********************************************************
-C     CREATE TNC WAIT FREQUENCY DISTRIBUTION               *
+C     CREATE TAXI WAIT FREQUENCY DISTRIBUTIONS             *
 C***********************************************************
-      SUBROUTINE FREQDIST
+      SUBROUTINE TAXIDIST
       include 'stadat.inc'
       include 'param.inc'
 	    include 'mlogitpar.inc'
@@ -11,49 +11,37 @@ C***********************************************************
       REAL*4    A,B,Y
       REAL*4    KVAL,KBACK
 C
-      IF(LDEBUG) open(194,file='uber_freqdist.csv',status='unknown',
-     *         form='formatted')
+      IF(LDEBUG) open(213,file='txwait_tlf.csv',
+     *          status='unknown',form='formatted')
 C
       DO CATS=1,6
-C
-      IF(UBCOEF(CATS,1).EQ.0.OR.UBCOEF(CATS,2).EQ.0) THEN
-      WRITE(*,9001) CATS,UBCOEF(CATS,1),UBCOEF(CATS,2)
-      WRITE(26,9001) CATS,UBCOEF(CATS,1),UBCOEF(CATS,2)
- 9001 FORMAT(/' COEFFICIENTS FOR THE TNC WAIT TIME FREQUENCY',
-     *        ' DISTRIBUTION ARE ZERO'/
-     *        ' FOR AREA TYPE=',I1/
-     *        '     UBCOEF(1)=',F10.5/
-     *        '     UBCOEF(2)=',F10.5/
-     *        ' *** PROGRAM TERMINATED ***'/)
-      STOP 8
-      END IF
 C
 C     COMPUTE PERCENT DISTRIBUTION BASED UPON INPUT WAIT VALUE
 C
       DO K=1,1000
       KVAL=FLOAT(K)/10.0
-      Y=EXP(UBCOEF(CATS,1)+(UBCOEF(CATS,2)/(KVAL**2)))
+      Y=EXP(TXCOEF(CATS,1)+(TXCOEF(CATS,2)/(KVAL**2)))
       YINDEX=IFIX(Y*1000.0)
 C     WRITE(26,100) CATS,K,KVAL,Y,YINDEX
 C 100 FORMAT(' CATS=',I2,' K=',I5,' KVAL=',F8.2,' Y=',F12.5,
 C    *       ' YINDEX=',I5)
       IF(YINDEX.LE.0.OR.YINDEX.GT.1000) CYCLE
-      FDIST(YINDEX,CATS)=KVAL
+      TXDIST(YINDEX,CATS)=KVAL
       END DO
 C
 C     SUMMARIZE ARRAY VALUES
 C
       KBACK=0.5
       DO K=1,1000
-      IF(FDIST(K,CATS).LE.0) FDIST(K,CATS)=KBACK
+      IF(TXDIST(K,CATS).LE.0) TXDIST(K,CATS)=KBACK
       KVAL=FLOAT(K)/10.0
-      KBACK=FDIST(K,CATS)
+      KBACK=TXDIST(K,CATS)
       END DO
       END DO
       IF(LDEBUG) THEN
       DO K=1,1000
       KVAL=FLOAT(K)/10.0
-      WRITE(194,200) KVAL,(FDIST(K,CATS),CATS=1,6)
+      WRITE(213,200) KVAL,(TXDIST(K,CATS),CATS=1,6)
   200 FORMAT(F6.1,6(',',F6.2))      
       END DO
       END IF

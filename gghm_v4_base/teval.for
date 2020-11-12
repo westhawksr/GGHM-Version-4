@@ -11,16 +11,19 @@ c
 c DATA DECLARATIONS
 c
       integer*2      znesta(50,3),bsta(2,2),ista,bdsta(2,2),sc1,sc2,jz
-      integer*2      sta,ur1,cr1,uracc,uregr,msta
+      integer*2      sta,ur1,cr1,uracc,uregr,msta,urunion
       integer*2      zonesta(max_izones),imode,dsta,osta
       real*4         znestau(50),butil(2,2)
       real*4         stasta(5,max_stations,max_stations)
       real*4         stazne(7,max_stations,max_izones)
-      real*4         mutil
+      real*4         mutil,unionivt,inveh,ivtdiff
+      character*3    ans(2)
+      data           ans/'---','YES'/
       mutil=-999.9
       msta=0
       sc1=bsta(1,ista)-max_izones
       sc2=bdsta(1,ista)-max_izones
+      urunion=equiv(ttcunion)-max_izones
 c -------------------------------------------------------------------
       if(debug) then
       write(26,9001) ista,
@@ -43,14 +46,28 @@ c ------------------------------------------------------------------
       cr1=zneref(sta,1)-max_izones
       ur1=zneref(sta,2)-max_izones
       uracc=znesta(sta,1)-max_izones
+      if(airpass.and.ttcind(uracc).ne.0) then
+      if(debug) write(26,9006) iequiv(znesta(sta,1)),staname(uracc),
+     *          ans(ttcind(uracc)+1)
+ 9006 FORMAT(//' TTC SUBWAY STATION ELIGIBILITY'/
+     *       ' --------------------------------'/
+     *       ' OSTA       NAME            ELM'/
+     *       ' ---- --------------------  ---'/
+     * 1X,I4,1x,A20,2X,A3)
+      cycle
+      end if
       uregr=znesta(sta,2)-max_izones
+      inveh=stasta(3,uracc,uregr)
+      unionivt=stasta(3,uracc,urunion)
+      ivtdiff=inveh-unionivt
 c ------------------------------------------------------------------
       if(debug) then
       write(26,9002) sta,iequiv(zneref(sta,1)),staname(cr1),
      *               iequiv(zneref(sta,2)),staname(ur1),
      *               iequiv(znesta(sta,1)),staname(uracc),
      *               iequiv(znesta(sta,2)),staname(uregr),
-     *               znesta(sta,3),znestau(sta)
+     *               znesta(sta,3),znestau(sta),
+     *               inveh,unionivt,ivtdiff
  9002 format(' STATION EQUIVALENCE - OPTION ',I2/
      *       ' -------------------------------'/
      *       '  GO    RAIL STATION EQUIV  =',I4,1X,A20/
@@ -58,9 +75,18 @@ c ------------------------------------------------------------------
      *       '  URBAN RAIL ACCESS STATION =',I4,1X,A20/
      *       '  URBAN RAIL EGRESS STATION =',I4,1X,A20/
      *       '  URBAN RAIL MODE INDICATOR =',I4/
-     *       '  URBAN RAIL ACCESS UTILITY =',F10.5/)
+     *       '  URBAN RAIL ACCESS UTILITY =',F10.5//
+     *       '  URBAN RAIL IN-VEHICLE TIME=',F10.2/
+     *       '  URBAN RAIL IVT TO UNTION  =',F10.2/
+     *       '  IN-VEHICLE DIFFERENCE     =',F10.2)
       end if
 c ------------------------------------------------------------------
+      if(ivtdiff.gt.acoef(10)) then
+      if(debug) write(26,9008) ivtdiff,acoef(10)
+ 9008 format(/'  IN-VEHICLE TIME DIFFERENCE=',F6.2,
+     *       ' IS GREATER THAN ACOEF(10)=',F6.2/)
+      cycle
+      end if
       imode=1
       osta=zneref(sta,1)
 	    call egrsta(jz,osta,stasta,stazne,dsta,imode,zonesta)
@@ -99,6 +125,11 @@ C.....................................................................
      *       ' --------------------------'/
      *       ' TTC SUBWAY   ACCESS UTILITY=',F10.5/
      *       ' GO RAIL BUS  ACCESS UTILITY=',F10.5/)
+      IF(AIRCALIB.AND.DEBUG) THEN
+      WRITE(343,9007) sta,iequiv(znesta(sta,1)),staname(uracc),
+     *                iequiv(znesta(sta,2)),staname(uregr),util
+ 9007 FORMAT(2X,I2,3X,I4,2X,A30,2X,I4,2X,A30,2X,F10.5)
+      END IF
       if(util.gt.mutil) then
       mutil=util
       msta=sta
@@ -109,6 +140,10 @@ C.....................................................................
      *       ' ------------------------------'/
      *       ' TTC SUBWAY   ACCESS UTILITY=',F10.5/
      *       ' GO RAIL BUS  ACCESS UTILITY=',F10.5/)
+      IF(AIRCALIB.AND.DEBUG) THEN
+      WRITE(343,9007) sta,iequiv(znesta(sta,1)),staname(uracc),
+     *                iequiv(znesta(sta,2)),staname(uregr),util
+      END IF
       END IF
       end do
       return

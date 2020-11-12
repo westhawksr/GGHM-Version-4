@@ -225,7 +225,7 @@ C
       if((.not.spevent).and.(.not.visitor)) then
       open(34,file=ftotper(1),
      *       status='old',form='binary')
-      if(ncats.gt.1) then
+      if(ncats.gt.1.and.(.not.airpass)) then
       open(35,file=ftotper(2),
      *       status='old',form='binary')
       open(36,file=ftotper(3),

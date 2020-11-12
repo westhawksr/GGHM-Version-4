@@ -8,7 +8,7 @@ c
 	    include 'mlogitpar.inc'
 	    include 'dvalues.inc'
 	    integer*2   unit,type,orgzn,destzn
-      integer*4   iz,jz,jjz,diz,djz
+      integer*4   iz,jz,jjz,diz,djz,index
       integer*4   nonzero(6,2),pindex,nochange(6)
       real*4      mtx(4000),mout(max_izones),prct
 	    real*4      srow(1000,1000)
@@ -16,11 +16,19 @@ c
 	    real*4      arow(1000,4000)
       real*4      hdist(4000)
       real*8      tesminp(6),tesmout(6),rem,srem,arem
-      real*8      ptrip(25,6,2),intra(6)
-      real*8      pertrp(50,50,2)
-      character*13 pname(2)
-      data        pname/'Observed','Estimated'/
+      real*8      ptrip(25,6,4),intra(6),tottrp(6,2)
+      real*8      pertrp(50,50,4),bsum(4000,2),xdiff
+      real*8      tripsum(4000,2),percent,tlf(200)
+      real*8      total
+      character*13 pname(4)
+      data        pname/'Observed','Estimated','Difference','Percent'/
       nochange=0
+      pertrp=0.0
+      tottrp=0.0
+      bsum=0.0
+      tripsum=0.0
+      tlf=0.0
+      total=0.0
 c
 c     open output file
 c
@@ -74,14 +82,17 @@ c ----------------------------------------------------------------
       pertrp(diz,31,1)=pertrp(diz,31,1)+mtx(jz)
       pertrp(31,31,1)=pertrp(31,31,1)+mtx(jz)
       end if
-      if(iz.eq.jz) then
+      tripsum(jz,1)=tripsum(jz,1)+mtx(jz)
+      if((iz.eq.jz).or.(boi(jz))) then
       mout(jz)=mtx(jz)
       tesminp(k)=tesminp(k)+mtx(jz)
+      if(iz.ne.jz) bsum(jz,1)=bsum(jz,1)+mtx(jz)
       cycle
       end if
       pindex=ifix(hdist(jz)/5.0)+1
       if(pindex.gt.25) pindex=25
       ptrip(pindex,k,1)=ptrip(pindex,k,1)+mtx(jz)
+      tottrp(k,1)=tottrp(k,1)+mtx(jz)
       tesminp(k)=tesminp(k)+mtx(jz) 
       if(mtx(jz).lt.tvalue(k)) then
        qvalue=tvalue(k)*0.20
@@ -107,7 +118,7 @@ c
        srem=0.0
        cvalue=tvalue(k)*lvalue(k)
        do jz=1,max_izones
-        if(iz.eq.jz) cycle
+        if((iz.eq.jz).or.(boi(jz))) cycle
         if(mtx(jz).lt.cvalue) then
         rem=rem+mtx(jz)
         else
@@ -138,9 +149,16 @@ C
       djz=iequiv(jz)
       diz=dequiv(diz)
       djz=dequiv(djz)
+      if((iz.eq.jz).or.(boi(jz))) then
       if(iz.eq.jz) then
       intra(k)=intra(k)+mout(jz)
+      tripsum(jz,2)=tripsum(jz,2)+mout(jz) 
+      end if
       tesmout(k)=tesmout(k)+mout(jz)
+      if(iz.ne.jz) then
+      bsum(jz,2)=bsum(jz,2)+mout(jz)
+      tripsum(jz,2)=tripsum(jz,2)+mout(jz)
+      end if
       if(diz.gt.0.and.djz.gt.0) then
       pertrp(diz,djz,2)=pertrp(diz,djz,2)+mout(jz)
       pertrp(31,djz,2)=pertrp(31,djz,2)+mout(jz)
@@ -151,6 +169,7 @@ C
       end if 
       mout(jz)=mout(jz)*arem
       tesmout(k)=tesmout(k)+mout(jz)
+      tripsum(jz,2)=tripsum(jz,2)+mout(jz)      
       if(diz.gt.0.and.djz.gt.0) then
       pertrp(diz,djz,2)=pertrp(diz,djz,2)+mout(jz)
       pertrp(31,djz,2)=pertrp(31,djz,2)+mout(jz)
@@ -162,6 +181,7 @@ C
       pindex=ifix(hdist(jz)/5.0)+1
       if(pindex.gt.25) pindex=25
       ptrip(pindex,k,2)=ptrip(pindex,k,2)+mout(jz)
+      tottrp(k,2)=tottrp(k,2)+mout(jz)
       end do
       if(.not.ptest) write(140) iz,k,(mout(jjz),jjz=1,max_izones)
       if(sdetail) write(26,7003) k,tesmout(k),intra(k)
@@ -182,18 +202,28 @@ C
       if(calib) then
       open(146,file='ptrip_tlf.csv',status='unknown',form='formatted')
       write(146,7007)
- 7007 format('market,index,original,bucket')
+ 7007 format('market,index,original,percent,bucket,percent')
       do k=1,ncats
       do k1=1,25
       k2=k1*5
-      write(146,7006) k,k2,ptrip(k1,k,1),ptrip(k1,k,2)
- 7006 format(i2,',',i4,2(',',f12.2))
+      ptrip(k1,k,3)=(ptrip(k1,k,1)/tottrp(k,1))*100.0
+      ptrip(k1,k,4)=(ptrip(k1,k,2)/tottrp(k,2))*100.0
+      write(146,7006) k,k2,ptrip(k1,k,1),ptrip(k1,k,3),
+     * ptrip(k1,k,2),ptrip(k1,k,4)
+ 7006 format(i2,',',i4,4(',',f12.2))
       end do
       end do
       end if
 C.... PERSON TRIP MATRIX COMPARISON
       if(calib) then
-      DO K2=1,2
+      do k1=1,50
+      do k2=1,50
+      pertrp(k1,k2,3)=pertrp(k1,k2,2)-pertrp(k1,k2,1)
+      if(pertrp(k1,k2,1).gt.0) 
+     *  pertrp(k1,k2,4)=(pertrp(k1,k2,3)/pertrp(k1,k2,1))*100.0
+      end do
+      end do
+      DO K2=1,4
       WRITE(160,9047) pname(k2),(dname(k),k=1,(maxpd+1))
  9047 FORMAT(A13,31(',',A35))
       DO K=1,(MAXPD+1)
@@ -202,8 +232,40 @@ C.... PERSON TRIP MATRIX COMPARISON
       END DO    
       END DO 
       end if
+C...  SUMMARIZE INPUT AND OUTPUT ATTRACTIONS 
+      if(ptest) then
+      open(279,file='person_trip_attractions.csv',status='unknown',
+     *         form='formatted')
+      write(279,9018)
+ 9018 format('zone,input,output,difference,percent')
+      do jz=1,max_izones
+      total=total+tripsum(jz,1)
+      if(tripsum(jz,1).ne.0.or.tripsum(jz,2).ne.0) then
+      xdiff=tripsum(jz,2)-tripsum(jz,1)
+      percent=0.0
+      if(tripsum(jz,1).gt.0) percent=(xdiff/tripsum(jz,1))*100.0
+      index=idint(percent+0.5)+100
+      index=min0(index,200)
+      index=max0(index,1)
+      tlf(index)=tlf(index)+tripsum(jz,1)
+      write(279,9017) iequiv(jz),tripsum(jz,1),tripsum(jz,2),xdiff,
+     *                percent
+ 9017 format(i5,4(',',f8.2))
+      end if
+      end do
+      open(280,file='person_trip_attraction_tlf.csv',status='unknown',
+     *         form='formatted')
+      do k=1,200
+      if(tlf(k).gt.0) then
+      percent=(tlf(k)/total)*100.0
+      write(280,9019) (k-100),tlf(k),percent
+ 9019 format(i3,2(',',f12.2))
+      end if
+      end do
+      end if
       if(ptest) then
       close(140,status='delete')
+      close(190,status='delete')
       stop
       end if
       close(85,status='keep')

@@ -89,7 +89,7 @@ c
      *          ktxfer
       egrind=staind(sc4,jz)
       end if
-c
+c...............................................................................
       if(sdetail) write(26,7001) name(imode),ic,staname(sc),
      *               dc,staname(sc2),
      *               ur1,staname(sc3),ur2,staname(sc4),
@@ -119,6 +119,7 @@ c
      *       ' EGRESS INDICATOR                     =',I10,
      *          ' DIRECT WALK=1,BUS TRANSFER=2'//
      *       ' SELECTED UTILITY                     =',F10.5/)
+c................................................................................
       if(util.gt.mutil) then
       mutil=util
       matr=sc2
@@ -130,6 +131,7 @@ c
       end if
       end do
       end do
+c............................................................................
       if(debug) then
       if(matr.gt.0) then
       write(26,7001) name(imode),ic,staname(sc),
@@ -164,6 +166,7 @@ c
      *       ' *** NO PATH AVAILABLE ***'/)
       end if
       end if
+c.........................................................................
       return
       end
              

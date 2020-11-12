@@ -241,6 +241,7 @@ C LOOP THROUGH STATIONS
 C----------------------------------------------------------------------------
       DO 110 SC=1,MAX_STATIONS
       IC=SC+MAX_IZONES
+      IF(AIRPASS.AND.NOBUSCR.AND.IMODE.EQ.1) CYCLE
 C
 C COMPUTE TOTAL IN-VEHICLE TIME
 C

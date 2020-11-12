@@ -1,7 +1,7 @@
 C-------------------------------------------------------------------
 C        STATION --> DESTINATION ZONE UTILITY COMPUTATION SUBROUTINE
 C-------------------------------------------------------------------
-       SUBROUTINE EGRESS(STAZNE,IMODE,ZONESTA,STAZNEI)
+       SUBROUTINE EGRESS(STAZNE,IMODE,ZONESTA,STAZNEI,EGRIVT)
        include 'stadat.inc'
        include 'param.inc'
 	     include 'mlogitpar.inc'
@@ -36,6 +36,7 @@ C
      *              EAWT(1000,4000),
      *              CROWD(1000,4000),
      *              LUNREL(1000,4000)
+      real*4        egrivt(1000,2)
       real*4        wait1a,wait1b,invrat,rativt
       CHARACTER*13  NAME(3)
       DATA          NAME/'GO Rail      ',
@@ -196,6 +197,10 @@ C COMPUTE TOTAL IN-VEHICLE TIME
 C
       INVEH(SC,JZ)=INVEHL(SC,JZ)+INVEHG(SC,JZ)+INVEHS(SC,JZ)+
      *             INVEHN(SC,JZ)+INVEHP(SC,JZ)
+      IF(AIRPASS.AND.JZ.EQ.EQUIV(4378).AND.IMODE.EQ.2) THEN
+      EGRIVT(SC,1)=INVEH(SC,JZ)
+      EGRIVT(SC,2)=WAIT2(SC,JZ)
+      END IF
 C
 C COMPUTE EGRESS PORTION OF UTILITY
 C
@@ -208,8 +213,11 @@ C....USING MODEL COEFFICIENTS
      *       COEFF(21)*EAWT(sc,jz)/(LSUM2CR*LSUM1TRN*LSUM3CW) +
      *       COEFF(22)*CROWD(sc,jz)/(LSUM2CR*LSUM1TRN*LSUM3CW) + 
      *       COEFF(23)*LUNREL(sc,jz)/(LSUM2CR*LSUM1TRN*LSUM3CW)
-      IF(AIR.AND.IEQUIV(IC).EQ.9701) THEN
-      STAZNE(2,SC,JZ)=STAZNE(2,SC,JZ)-COEFF(5)*(TRANSF(SC,JZ)-1.0)
+C     IF(AIR.AND.IEQUIV(IC).EQ.9701) THEN
+C     STAZNE(2,SC,JZ)=STAZNE(2,SC,JZ)-COEFF(5)*(TRANSF(SC,JZ)-1.0)
+C     END IF
+      IF(AIRPASS.AND.IMODE.EQ.2) THEN
+      STAZNE(2,SC,JZ)=STAZNE(2,SC,JZ)+COEFF(1)*INVEH(SC,JZ)*COEFF(80)
       END IF
       IF(IMODE.EQ.3) THEN
       WAIT1A=0.0
@@ -275,7 +283,7 @@ C....................................................................
      *               INVEHN(SC,JZ),INVEHP(SC,JZ),NCAPAC(sc,jz), 
      *               EAWT(sc,jz),CROWD(sc,jz),LUNREL(sc,jz)
       IF(SDETAIL) THEN
-      WRITE(26,9025) NAME(IMODE),IEQUIV(IC),STANAME(SC),IEQUIV(JZ),
+      WRITE(336,9025) NAME(IMODE),IEQUIV(IC),STANAME(SC),IEQUIV(JZ),
      *               DIRWALK(SC,JZ),INVEH(SC,JZ),
      *               INVEHL(SC,JZ),INVEHG(SC,JZ),INVEHS(SC,JZ),
      *               INVEHN(SC,JZ),INVEHP(SC,JZ),

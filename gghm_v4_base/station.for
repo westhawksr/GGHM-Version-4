@@ -29,7 +29,7 @@ C
      *              EAWT(1000,1000),
      *              CROWD(1000,1000),
      *              LUNREL(1000,1000)
-      REAL*4        STAUTL,WAIT1A,WAIT1B,TXWAIT
+      REAL*4        STAUTL,WAIT1A,WAIT1B,TXWAIT,UPXRAT
       REAL*4        TXFERS,OFPKHD,LNECNST,PEARCNST,STACNST
       CHARACTER*13  NAME(2)
       LOGICAL       IVTCHK
@@ -281,15 +281,19 @@ C ----------------------------------------------------------------
       IVTCHK=.FALSE.
 C
 C     COMPUTE FARE
+C     [CORRECTED FARE COMPUTATATION 29Jun20]      
 C
       IF(IMODE.EQ.1) THEN
+      UPXRAT=UPXIVT(SC,SC2)/INVEH(SC,SC2)
       FARE(SC,SC2)=(BFAREGR+DFAREGR*SDIST(SC,SC2))*100.0
-      FARE(SC,SC2)=FARE(SC,SC2)*(1.0-(UPXIVT(SC,SC2)/INVEH(SC,SC2)))
+      FARE(SC,SC2)=FARE(SC,SC2)*(1.0-UPXRAT)
         IF(UPXIVT(SC,SC2).GT.0.0) THEN
-        IF(DC.EQ.PEARSON) THEN
-        FARE(SC,SC2)=FARE(SC,SC2)+AIRFR*100.0
+        IF(DC.EQ.PEARSON.AND.IC.EQ.GOUNION) THEN
+        FARE(SC,SC2)=FARE(SC,SC2)+AIRFR*UPXRAT*100.0
+        ELSEIF(IC.EQ.PEARSON.AND.DC.EQ.GOUNION) THEN
+        FARE(SC,SC2)=FARE(SC,SC2)+NAIRFR*UPXRAT*100.0
         ELSE
-        FARE(SC,SC2)=FARE(SC,SC2)+NAIRFR*100.0
+        FARE(SC,SC2)=FARE(SC,SC2)+NAIRFR*UPXRAT*100.0
         END IF
         END IF
       ELSE
@@ -304,7 +308,7 @@ C
      *       ' COMPUTED FARE=',F8.2,' STATION-TO-STATION FARE=',F8.2)
       END IF
       STASTA(4,SC,SC2)=FARE(sc,sc2)
-      STASTA(5,SC,SC2)=WAIT2(sc,sc2)-WAIT1(sc,sc2)
+      STASTA(5,SC,SC2)=WAIT2(sc,sc2)
       TXWAIT=WAIT2(sc,sc2)-WAIT1(sc,sc2)
       TXFERS=TRANSF(SC,SC2)-1.0
 C....................................................................
@@ -314,14 +318,14 @@ C....................................................................
      *                WALKTFR(sc,sc2),NCAPAC(sc,sc2),EAWT(sc,sc2),
      *                CROWD(sc,sc2),LUNREL(sc,sc2),
      *                STAUTL
-      IF(SDETAIL) THEN
+      IF(SDETAIL.OR.(LDEBUG.AND.DC.EQ.PEARSON)) THEN
       TXWAIT=WAIT2(sc,sc2)-WAIT1(sc,sc2)
       TXFERS=TRANSF(SC,SC2)-1.0
-      WRITE(26,9029)  IC,STANAME(SC),NAME(IMODE),DC,STANAME(SC2),
+      WRITE(335,9029)  IC,STANAME(SC),NAME(IMODE),DC,STANAME(SC2),
      *                STADATA(SC,8),STADATA(SC2,8),SDIST(SC,SC2),
      *                KGLINE(ORIGLINE),
      *                KTLINE(ORIGLINE,DESTLINE),LNECNST,UPXCNST,
-     *                WAIT1(sc,sc2),TXWAIT,
+     *                PEARCNST,STACNST,WAIT1(sc,sc2),TXWAIT,
      *                TXFERS,FARE(sc,sc2),STSFARE(SC,SC2),
      *                INVEH(sc,sc2),UPXIVT(sc,sc2),
      *                WALKTFR(sc,sc2),WAIT1OP(sc,sc2),OFPKHD,
@@ -339,6 +343,8 @@ C....................................................................
      *       1X,'TTC SUBWAY CONSTANT      =',F8.4/
      *       1X,'LINE CONSTANT            =',F8.4/
      *       1X,'UPX  CONSTANT            =',F8.4/
+     *       1X,'PEARSON CONSTANT         =',F8.4/
+     *       1X,'UNION STATION CONSTANT   =',F8.4/
      *       1X,'1ST WAIT             TIME=',F8.2/
      *       1X,'TRANSFER WAIT        TIME=',F8.2/
      *       1X,'NUMBER OF TRANSFERS      =',F8.2/

@@ -158,12 +158,12 @@ c      STOP 16
      *       1X,'LINK UNRELIABILITY TIME  =',F8.2//
      *       1X,'UTILITY VALUE            =',F10.5/)    
       ELSE                                                              
-      WRITE(26,9026) NAME(IMODE),STA,JZ,DSTA                                        
+      WRITE(26,9026) NAME(IMODE),IEQUIV(STA),IEQUIV(JZ),IEQUIV(DSTA)                                        
  9026 FORMAT(/1X,'EGRESS STATION SELECTION -- ',A13/                            
      *       1X,'------------------------'/                             
      *       1X,'ACCESS STATION    =',I10/                              
      *       1X,'DESTINATION ZONE  =',I10/                              
-     *       1X,'DEST   STATION    =',I10)                              
+     *       1X,'DEST   STATION    =',I10/)                              
       ENDIF                                                             
       ENDIF
 C.....................................................................

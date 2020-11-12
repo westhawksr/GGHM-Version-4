@@ -7,6 +7,7 @@ C***********************************************************
 	    include 'mlogitpar.inc'
 	    include 'dvalues.inc'
       INTEGER*2    TIME(4),NERR,STAT1,I(20),J(20),LINDEX,JCOUNT
+      INTEGER*2    NOBUCKET(20)
       INTEGER*4    IT,ST,TT,UT,VT,XT,RLEN,DATE(3),NUM,NZONES
       INTEGER*4    T,PD,RERPD,AREA1,AREA2,AREA3,ZONE,SUPERPD
       REAL*4       PCOST,WALK1,WALK2,PCOSTFCT,HOTEL
@@ -22,9 +23,10 @@ C***********************************************************
       CHARACTER*10 RENTNAME(10)
       CHARACTER*35 DNAMEIN,SNAME
       CHARACTER*60 ALTNAME
-      CHARACTER*80 HEADER
+      CHARACTER*80  HEADER
       CHARACTER*200 FILENAME
       CHARACTER*200 CTLFILE
+      CHARACTER*300 HEADER2
       LOGICAL      EXISTS,CTLERR(7)
       DATA         BLANK/' '/
       DATA         FRPT/'MLOGIT.RPT'/,FERRFILE/'MLOGIT.ERR'/
@@ -42,8 +44,7 @@ C
       WRITE(*,1000) DATE,(TIME(T),T=1,3)
  1000 FORMAT(/'              PROGRAM MLOGIT'/
      *        '    MODE CHOICE MODEL APPLICATION PROGRAM '/
-     *        '          [Version Date: 06Jul17]'/
-     *        '          [ Updated:     08Feb19]'/
+     *        '          [Version Date: 01Nov20]'/
      *        '          [ 4,000 Zone Version ]'//
      *        5X,'       Date: ',I2,'/',I2,'/',I4/
      *        5X,'       Time: ',I2,':',I2,':',I2,///)
@@ -59,24 +60,26 @@ C
      *                   FERRFILE,FBUCKET,FRPTCSV,
      *                   FPOPSYN,FSPFILE,FHOTEL,FWATERLOO,
      *                   FUSERBEN,U190TMP,FAIRCALIB,
-     *                   FVSKIM,FZDEN,FAIRPARK,FSPEVENT
+     *                   FVSKIM,FZDEN,FAIRPARK,FSPEVENT,
+     *                   FAIRDIST
       NAMELIST  /MATX/   MFURSS,MFCRSS,MFZSTA,MFWLKSTA,
      *                   MFWKGOBUS,MFTOTPER,MFLSUM,MFVSKIM,
      *                   MFSTATRP,MFTRIPS,MFZSTAGR,MFZSTAFR,
      *                   MFWKBUSTR,MFWKRAP,MFHWY0,MFHWY2P,
-     *                   MFNMOTOR,MFATRIPS,MFAIR,
+     *                   MFNMOTOR,MFATRIPS,MFAIR,MFLOT,
      *                   SFZSTA,SFZSTAFR,SFWLKSTA
       NAMELIST  /PARAMS/ NCATS,MXZONES,CITER,TVALUE,PVALUE,
      *                   CTAZNE,LVALUE,FINCH,GOUNION,TTCUNION,
-     *                   BDMAIN,PEARSON
+     *                   BDMAIN,PEARSON,WESTON,BLOOR
       NAMELIST  /OPTIONS/DEBUG,SDETAIL,CALIB,LSBASE,TRIPSOUT,
      *                   PEAK,CAPRES,ZEROCAR,NDRVGOB,NDRVRAP,
      *                   NDRVBUS,CCR,PTEST,AIR,ITFPRK,LDEBUG,
      *                   AIRPASS,TRNLOT,CONRAC,NMOT,VEHOUT,
      *                   NOTRANSIT,CSVRPT,EMPPRK,SPEVENT,
      *                   VISITOR,SPACESUM,WATERLOO,TTCACC,
-     *                   USERBEN,VSKIM,UBERIN
-      NAMELIST  /SELECTS/I,J
+     *                   USERBEN,VSKIM,UBERIN,SPRICE,AIRCALIB,
+     *                   UNION_ONLY,AIRPNR,NOBUSCR
+      NAMELIST  /SELECTS/I,J,NOBUCKET
       NAMELIST  /PARMS/  COEFF,WAITLT,LSUM1TRN,LSUM2GB,LSUM2CR,
      *                   LSUM2UR,LSUM3CW,LSUM3CB,LSUM3CP,LSUM1NM,
      *                   LSUM3CK,LSUM3UW,LSUM3UB,LSUM3UP,PCOSTFCT,
@@ -86,8 +89,8 @@ C
      *                   LSUM3UK,KDTRN,KPNR,OPCOST,DSCT2P,DSCT3P,
      *                   BPFACE,BUSPNROCC,SWALK,LWALK,UPXCNST,
      *                   KWCR,KBCR,KPCR,KKCR,SCHBUS,ATTFCT,AIRFCTR,
-     *                   KWUR,KBUR,KPUR,KKUR,KCRURTX,
-     *                   KCBD,KCR,KUR,KGBUS,KRBUS,KDIST,
+     *                   KWUR,KBUR,KPUR,KKUR,KCRURTX,KCURB,
+     *                   KCBD,KCR,KUR,KGBUS,KRBUS,KDIST,KPARK,
      *                   KINFLSTR,KINFLRPD,KPUBPRK,KLOTTRN,
      *                   CCRPNRT,CCRPNRD,CDAR,KGOBUSW,KBUSTRW,
      *                   KGOBUSD,BFAREGR,DFAREGR,BFARETTC,
@@ -98,7 +101,8 @@ C
      *                   MWALKT,MWALK1,MWALK2,MBIKET,MBIKE1,MBIKE2,
      *                   ACOEF,ACNST,RNTWAIT,AIROCC,KCRWLK,
      *                   KFINCHBUS,KNMCBD,UNIONGR,UNIONTTC,UBCOEF,
-     *                   TTCDSCV,TTCDSCF
+     *                   TTCDSCV,TTCDSCF,ADJFCT,DURCOEF,MAXPCOST,
+     *                   TIMEFACT,AIRSEG,TXCOEF,AWCR,KLBUS,TTCNST
       NAMELIST  /OBS/    NITER,ADJFCT,CCODE,CBDTRP,DSTTRP,DAINDEX,
      *                   GORLOBS,TTCLOBS,FINCHOBS,NMCBDOBS,
      *                   GORUNOBS
@@ -156,6 +160,8 @@ C
       TTCUNION=9771
       BDMAIN=9763
       PEARSON=9863
+      BLOOR=9822
+      WESTON=9831
       KFINCHBUS=0.0
       FINCHOBS=0.0
       DAINDEX=.FALSE.
@@ -180,13 +186,31 @@ C
       AIRFR=0.0
       VSKIM=.FALSE.          
       UBERIN=.TRUE.
+      SPRICE=.FALSE.
       UPXCNST=0.0
       ZDEN=0.0
       UBCOEF=0.0
+      TXCOEF=0.0
+      DURCOEF=0.0
       FDIST=0.0
       TTCDSCV=0.0
       TTCDSCF=0.0
       FAIRPARK=BLANK
+      ADJFCT=0.5
+      BOI=.FALSE.
+      MAXPCOST=100.0
+      TIMEFACT=1.0
+      AIRSEG(1)=1.0
+      AIRSEG(2)=0.0
+      AIRSEG(3)=0.0
+      KCURB=0.0
+      AWCR=0.0
+      AIRCALIB=.FALSE.
+      ACOEF(9)=5.0
+      UNION_ONLY=.FALSE.
+      AIRPNR=.FALSE.
+      NOBUSCR=.FALSE.
+      TTCNST=0.0
 C
 C     READ CONTROL FILE NAME FROM COMMAND LINE
 C
@@ -236,7 +260,7 @@ C
       REWIND 1
       GO TO 60
    55 CTLERR(6)=.TRUE.
-   60 IF(CALIB) READ(1,OBS, ERR=65)
+   60 IF((CALIB.and.(.not.ptest)).OR.AIRCALIB) READ(1,OBS,ERR=65)
       GO TO 70
    65 CTLERR(1)=.TRUE.
    70 CONTINUE
@@ -268,7 +292,8 @@ C
      *             FSTASUM,FSTAACC,FUSERBEN,
      *             FCONST,FGOBUS,FDISTSUM,
      *             FBUSTXFR,FRAPDRAT,FVSKIM,FZDEN
-      IF(AIR) WRITE(26,501) AIRPARK,RENTAL,XYCOORD,FAIRPARK
+      IF(AIR) WRITE(26,501) AIRPARK,RENTAL,XYCOORD,FAIRPARK,
+     *                      FAIRDIST
       IF(SPEVENT) WRITE(26,502)  FPOPSYN,FSPFILE,FSPEVENT
       IF(VISITOR) WRITE(26,503)  FHOTEL
   500 FORMAT(1X,'SUMMARY OF FILE INPUTS & OUTPUTS'/
@@ -298,7 +323,8 @@ C
   501 FORMAT(1X,'AIRPARK = ',a50,' PEARSON PARKING LOT FILE'/
      *       1X,'RENTAL  = ',a50,' RENTAL CAR FACILITY FILE'/
      *       1X,'XYCOORD = ',a50,' X-Y CENTROID COORDINATE FILE'/
-     *       1X,'FAIRPARK= ',a50,' PARKING LOT CONSTRAINT FILE'/)
+     *       1X,'FAIRPARK= ',a50,' PARKING LOT CONSTRAINT FILE'/
+     *       1X,'FAIRDIST= ',a50,' MODE DISTRICT LEVEL SUMMARY FILE'/)
   502 FORMAT(1X,'FPOPSYN = ',a50,' POPSYN SUMMARY FILE'/
      *       1X,'FSPFILE = ',a50,' SPECIAL EVENT INPUT FILE'/
      *       1X,'FSPEVENT= ',a50,' SPECIAL EVENT DIST LEVEL OUTPUT'/)
@@ -311,15 +337,16 @@ C
      *               MFHWY0,MFHWY2P,MFTOTPER,MFLSUM,
      *               MFSTATRP,MFTRIPS,MFATRIPS,MFVSKIM,
      *               MFZSTAFR,MFNMOTOR,SFZSTA,SFZSTAFR,SFWLKSTA,
-     *               MFAIR,
+     *               MFAIR,MFLOT,
      *               NCATS,MXZONES,CITER,TVALUE,PVALUE,LVALUE,CTAZNE,
      *               FINCH,GOUNION,TTCUNION,PEARSON,
      *               SDETAIL,DEBUG,CALIB,LSBASE,
      *               TRIPSOUT,PEAK,CAPRES,ZEROCAR,
      *               NDRVGOB,NDRVRAP,NDRVBUS,CCR,AIR,AIRPASS,TRNLOT,
      *               CONRAC,NMOT,VEHOUT,CSVRPT,EMPPRK,SPEVENT,VISITOR,
-     *               SPACESUM,USERBEN,VSKIM,UBERIN,TTCACC,
-     *               I,J,(COEFF(K),K=1,30),(COEFF(K3),K3=31,40),
+     *               SPACESUM,USERBEN,VSKIM,UBERIN,TTCACC,SPRICE,
+     *               I,J,NOBUCKET,
+     *               (COEFF(K),K=1,30),(COEFF(K3),K3=31,40),
      *               (COEFF(K4),K4=41,50),
      *               (COEFF(K1),K1=51,56),
      *               (COEFF(K2),K2=71,76),WAITLT,
@@ -349,8 +376,14 @@ C
      *               KINFLSTR,KINFLRPD,KGLINE,KFINCHBUS,
      *               KCRURTX,KCRWLK,KPUBPRK,KLOTTRN,
      *               ATTFCT
-      IF(AIRPASS)    WRITE(26,9013) ACOEF,RNTWAIT,AIROCC,
-     *               ACNST,AWUR,UPXCNST,AIRFCTR
+      IF(AIRPASS) THEN
+      WRITE(26,9013) ACOEF,RNTWAIT,AIROCC,
+     *               ACNST,AWCR,UPXCNST,AIRFCTR,DURCOEF,
+     *               MAXPCOST,TIMEFACT,AIRSEG,KCURB,KPARK,
+     *               AIRCALIB,UNION_ONLY,AIRPNR,WESTON,BLOOR,
+     *               NOBUSCR,TTCNST
+      MAXPCOST=(MAXPCOST*100.0)/2.0
+      END IF
  9001 FORMAT(//' RCTL 9001 (I) CONTENTS OF CONTROL FILE: '/
      *         ' ----------------------------------------'/
      *    '&MATX'   /'  MFCRSS   = ',14I5/'  MFURSS   = ',11I5/
@@ -364,6 +397,7 @@ C
      *               '  MFZSTAFR = ',3I5/ '  MFNMOTOR = ',4I5/
      *               '  SFZSTA   = ',15I5/'  SFSTAFR  = ',3I5/
      *               '  SFWLKSTA = ',I5/  '  MFAIR    = ',6I5/
+     *               '  MFLOT    = ',3I5/
      *    '&PARAMS' /'  NCATS   = ',I4/   '  MXZONES  = ',I4/
      *               '  CITER   = ',I4/   '  TVALUE   = ',6(1X,F5.2)/
      *               '  PVALUE  = ',6I4/  '  LVALUE   = ',6(1X,F5.2)/
@@ -383,8 +417,9 @@ C
      *               '  SPEVENT = ',L1  /'  VISITOR = ',L1/
      *               '  SPACESUM= ',L1  /'  USERBEN = ',L1/
      *               '  VSKIM=    ',L1  /'  UBERIN  = ',L1/
-     *               '  TTCACC    ',L1  /
+     *               '  TTCACC    ',L1  /'  SPRICE  = ',L1/
      *    '&SELECTS'/'  I       = ',20I5/'  J       = ',20I5/
+     *               '  NOBUCKET= ',20I5/
      *    '&PARMS  '/'  COEFF( 1-10)= ',10(1X,F8.5)/
      *               '  COEFF(11-20)= ',10(1X,F8.5)/
      *               '  COEFF(21-30)= ',10(1X,F8.5)/
@@ -501,6 +536,12 @@ C
      *  1X,'OUT-OF-VEHICLE COEFFICIENT         =',F8.5,' ACOEF(2)'/
      *  1X,'COST COEFFICIENT                   =',F8.5,' ACOEF(3)'/
      *  1X,'RENTAL CAR AUTO OPERATING COST/KM  =',F8.5,' ACOEF(4)'/
+     *  1X,'DISTANCE COEFFICIENT - CURB        =',F8.5,' ACOEF(5)'/
+     *  1X,'DISTANCE COEFFICIENT - PARKED      =',F8.5,' ACOEF(6)'/
+     *  1X,'BASE TAXI FARE                     =',F8.2,' ACOEF(7)'/
+     *  1X,'TAXI FARE PER MILE                 =',F8.2,' ACOEF(8)'/
+     *  1X,'TTC SUBWAY - GO RAIL TIME THRESHOLD=',F8.2,' ACOEF(9)'/
+     *  1X,'TTC SUBWAY/GO RAIL STA CHOICE TIME =',F8.2, 'ACOEF(10)'/
      *  1X,'RENTAL CAR FACILITY WAIT TIME      =',F8.5,' RNTWAIT'/
      *  1X,'PEARSON PARKING LOT AUTO OCCUPANCY =',F8.5,' AIROCC'//
      *  1X,'TAXI CONSTANT                      =',F8.4,' ACNST(1)'/
@@ -516,9 +557,29 @@ C
      *  1X,'TNC (UBER) UPX ACCESS CONSTANT     =',F8.4,' ACNST(11)'/
      *  1X,'TTC SUBWAY ACCESS TO GO RAIL       =',F8.4,' ACNST(12)'/
      *  1X,'GO UNION STATION CONSTANT          =',F8.4,' ACNST(13)'/
-     *  1X,'URBAN RAIL WALK ACCESS CONSTANT    =',F8.4,' AWUR'/
+     *  1X,'GO RAIL WALK ACCESS CONSTANT(UNION)=',F8.4,' AWCR'/
      *  1X,'UP EXPRESS CONSTANT                =',F8.4,' UPXCNST'/
-     *  1X,'AIR PASSENGER ENPLANEMENT FACTOR   =',F8.4,' AIRFCTR'//)
+     *  1X,'AIR PASSENGER ENPLANEMENT FACTOR   =',F8.4,' AIRFCTR'/
+     *  1X,'DURATION COEFFICIENT - 1           =',F8.5,' DURCOEF(1)'/
+     *  1X,'DURATION COEFFICIENT - 2           =',F8.5,' DURCOEF(2)'/
+     *  1X,'MAXDAILY AIR PASSENGER PARKING COST=',F8.2,' MAXPCOST'/
+     *  1X,'TIME PERIOD FACTOR                 =',F8.4,' TIMEFACT'/
+     *  1X,'PASSENGER & BAGS SEGMENTATION #1   =',F8.4,' AIRSEG(1)'/
+     *  1X,'PASSENGER & BAGS SEGMENTATION #2   =',F8.4,' AIRSEG(2)'/
+     *  1X,'PASSENGER & BAGS SEGMENTATION #3   =',F8.4,' AIRSEG(3)'/
+     *  1X,'CURB PASSENGER/BAGS CONSTANT -SEG 1=',F8.4,' KCURB(1)'/
+     *  1X,'CURB PASSENGER/BAGS CONSTANT -SEG 2=',F8.4,' KCURB(2)'/
+     *  1X,'CURB PASSENGER/BAGS CONSTANT -SEG 2=',F8.4,' KCURB(3)'/
+     *  1X,'PARK PASSENGER/BAGS CONSTANT -SEG 1=',F8.4,' KPARK(1)'/
+     *  1X,'PARK PASSENGER/BAGS CONSTANT -SEG 2=',F8.4,' KPARK(2)'/
+     *  1X,'PARK PASSENGER/BAGS CONSTANT -SEG 2=',F8.4,' KPARK(3)'/
+     *  1X,'AIR PASSENGER CALIBRATION OPTION   =',7X,L1,' AIRCALIB'/
+     *  1X,'UNION ONLY FOR SUBWAY TO GO RAIL   =',7X,L1,' UNION_ONLY'/
+     *  1X,'ALLOW PARK-N-RIDE TO GO RAIL       =',7X,L1,' AIRPNR'/
+     *  1X,'GO RAIL WESTON STATION NUMBER      =',I8,' WESTON'/
+     *  1X,'GO RAIL BLOOR STATION NUMBER       =',I8,' BLOOR'/
+     *  1X,'NO BUS ACCESS TO GO RAIL           =',7X,L1,' NOBUSCR'/
+     *  1X,'TTC SUBWAY TO GO RAIL              =',F8.4,' TTCNST'/)
       IF(CALIB) THEN
       WRITE(26,9011) NITER,ADJFCT,CCODE
  9011 FORMAT('&OBS   ' /'  NITER   = ',I4  /'  ADJFCT   = ',F4.2/
@@ -557,6 +618,28 @@ C
      * '  CCODE(30)= ',3X,L1,' NON-MOTORIZED CBD CONSTANT'/
      * '  CCODE(31)= ',3X,L1,' GO RAIL UNION STATION WALK'/)
       END IF
+      IF(AIRCALIB) THEN
+      WRITE(26,9020) NITER,ADJFCT,(CCODE(K),K=1,18)
+ 9020 FORMAT('&OBS   ' /'  NITER   = ',I4  /'  ADJFCT   = ',F4.2/
+     * '  CCODE(1) = ',3X,L1,' DRIVE ALONE (KDA)'/
+     * '  CCODE(2) = ',3X,L1,' 2-PERSON (K2P)'/
+     * '  CCODE(3) = ',3X,L1,' 3+PERSON (K3P)'/
+     * '  CCODE(4) = ',3X,L1,' DROP-OFF (ACNST(4))'/
+     * '  CCODE(5) = ',3X,L1,' RENTAL CAR (ACNST(2))'/
+     * '  CCODE(6) = ',3X,L1,' LIMO/TOWN CAR (ACNST(3))'/
+     * '  CCODE(7) = ',3X,L1,' TAXI (ACNST(1))'/
+     * '  CCODE(8) = ',3X,L1,' ON-CALL (ACNST(6))'/
+     * '  CCODE(9) = ',3X,L1,' TRANSIT (ACNST(7))'/
+     * '  CCODE(10)= ',3X,L1,' UBER (ACNST(10))'/
+     * '  CCODE(11)= ',3X,L1,' UPX (UPXCNST)'/
+     * '  CCODE(12)= ',3X,L1,' DRIVE & PARK (ACNST(5))'/
+     * '  CCODE(13)= ',3X,L1,' UPX SHARED RIDE (KKCR)'/
+     * '  CCODE(14)= ',3X,L1,' TTC SUBWAY (KUR)'/
+     * '  CCODE(15)= ',3X,L1,' GO BUS (KGBUS)'/
+     * '  CCODE(16)= ',3X,L1,' BUS/STREETCAR (KLBUS)'/
+     * '  CCODE(17)= ',3X,L1,' TTC SUBWAY TO GO RAIL (TTCNST)'/
+     * '  CCODE(18)= ',3X,L1,' UPX UBER ACCESS (ANCST(11))'/)
+      END IF
 C     IF(MXZONES.LE.0) THEN
 C     WRITE(26,9016)
 C     WRITE(*,9016)
@@ -569,6 +652,19 @@ C     END IF
  9017 FORMAT(/' RCTL 9017 (F) TRIPS CANNOT BE WRITTEN OUT ',
      *        ' WHEN IN CALIBRATION MODE'/)
       STOP 9017
+      END IF
+C
+C     CONVERT TAXI FARES TO CENTS
+C     SET DEFAULT VALUES IF AIRPNR=T
+C
+      IF(AIRPASS) THEN
+      ACOEF(7)=ACOEF(7)*100.0
+      ACOEF(8)=ACOEF(8)*100.0
+       IF(AIRPNR.AND.KPCR(1).EQ.0.0) THEN
+       KPCR(1)=-2.5
+       KPCR(2)=-2.5
+       KPCR(3)=-2.5
+       END IF
       END IF
       IF(WATERLOO.AND.(.NOT.LSBASE)) LSBASE=.TRUE.
 C
@@ -797,6 +893,14 @@ C
         J(IN)=EQUIV(J(IN))*(-1.0)
         END IF
        END IF
+       IF(NOBUCKET(IN).GT.0) THEN
+       NOBUCKET(IN)=EQUIV(NOBUCKET(IN))
+       ELSE
+        IF(NOBUCKET(IN).LT.0) THEN
+        NOBUCKET(IN)=IIABS(NOBUCKET(IN))
+        NOBUCKET(IN)=EQUIV(NOBUCKET(IN))*(-1.0)
+        END IF
+       END IF
        END DO
 C.............................................
        IF(DEBUG) THEN
@@ -846,16 +950,38 @@ C
         ENDIF
       END DO
 C
+C     SET THE NOBUCKET CONTROLS
+C
+      DO IN=1,20
+        IF(NOBUCKET(IN).GT.0) THEN
+          NI=NI+1
+          IF(NOBUCKET(IN).LE.MXZONES) THEN
+            BOI(NOBUCKET(IN))=.TRUE.
+          ENDIF
+        ELSEIF(NOBUCKET(IN).LT.0) THEN
+          NI=NI+1
+          IEND=NOBUCKET(IN)*(-1)
+          IBEG=NOBUCKET(IN-1)+1
+          DO INF=IBEG,IEND
+          BOI(INF)=.TRUE.
+          END DO
+        ENDIF
+      END DO
+C
 C     OPEN WORKING FILES FOR DEBUG FEATURE
 C
       if(debug) then
       open(101,file='stafile.bin',status='unknown',form='binary')
       open(103,file='egrfile.bin',status='unknown',form='binary')
+      open(335,file='station_to_station_sdetail.rpt',status='unknown',
+     *         form='formatted')
+      open(336,file='station_to_zone_sdetail.rpt',status='unknown',
+     *         form='formatted')
       end if
 C
 C     OPEN CALIBRATED CONSTANT FILE
 C
-      if(calib) then
+      if(calib.and.(.not.ptest)) then
       open(100,file=fconst,status='unknown',form='formatted')
       open(102,file=fgobus,status='unknown',
      *         form='formatted')
@@ -1092,183 +1218,20 @@ C
 C     CALL TO OPEN INPUT FILES
 C
       CALL FILEOPEN
-C
-C     OPEN OUTPUT TRIP MATRICES
-C
-      IF(TRIPSOUT) THEN
-C....STATION LEVEL TRIPS
-      chkout=.false.
-      DO IT=1,14
-      CALL MFNAME(MFSTATRP(IT),FILENAME)
-      FSTATRP(IT)=FILENAME
-      END DO
-      open(184,file=fstatrp(1),
-     *       status='unknown',form='binary')
-      open(44,file=fstatrp(2),
-     *       status='unknown',form='binary')
-      open(45,file=fstatrp(3),
-     *       status='unknown',form='binary')
-      open(46,file=fstatrp(4),
-     *       status='unknown',form='binary')
-      open(47,file=fstatrp(5),
-     *       status='unknown',form='binary')
-      open(48,file=fstatrp(6),
-     *       status='unknown',form='binary')
-      open(49,file=fstatrp(7),
-     *       status='unknown',form='binary')
-      open(50,file=fstatrp(8),
-     *       status='unknown',form='binary')
-      open(21,file=fstatrp(9),
-     *       status='unknown',form='binary')
-      open(171,file=fstatrp(10),
-     *       status='unknown',form='binary')
-      open(185,file=fstatrp(11),
-     *       status='unknown',form='binary')
-      open(186,file=fstatrp(12),
-     *       status='unknown',form='binary')
-      open(187,file=fstatrp(13),
-     *       status='unknown',form='binary')
-      open(188,file=fstatrp(14),
-     *       status='unknown',form='binary')
-C...ZONE TO ZONE TRANSIT TRIPS
-      DO IT=1,17
-      CALL MFNAME(MFTRIPS(IT),FILENAME)
-      FTRIPS(IT)=FILENAME
-      END DO
-      chkout=.true.
-      open(51,file=ftrips(1),
-     *       status='unknown',form='binary')
-      open(52,file=ftrips(2),
-     *       status='unknown',form='binary')
-      open(53,file=ftrips(3),
-     *       status='unknown',form='binary')
-      open(54,file=ftrips(4),
-     *       status='unknown',form='binary')
-      open(55,file=ftrips(5),
-     *       status='unknown',form='binary')
-      open(56,file=ftrips(6),
-     *       status='unknown',form='binary')
-      open(57,file=ftrips(7),
-     *       status='unknown',form='binary')
-      open(58,file=ftrips(8),
-     *       status='unknown',form='binary')
-      open(59,file=ftrips(9),
-     *       status='unknown',form='binary')
-      open(60,file=ftrips(10),
-     *       status='unknown',form='binary')
-      open(124,file=ftrips(11),
-     *       status='unknown',form='binary')
-      open(125,file=ftrips(12),
-     *       status='unknown',form='binary')
-      open(126,file=ftrips(13),
-     *       status='unknown',form='binary')
-      open(127,file=ftrips(14),
-     *       status='unknown',form='binary')
-      open(61,file=ftrips(15),
-     *       status='unknown',form='binary')
-      if(mftrips(16).gt.0) then
-      open(180,file=ftrips(16),
-     *       status='unknown',form='binary')
-      end if
-      if(mftrips(17).gt.0) then
-      open(181,file=ftrips(17),
-     *       status='unknown',form='binary')
-      end if
-      END IF
-      IF(VEHOUT) THEN
-C...ZONE TO ZONE AUTO TRIPS
-      chkout=.false.
-      DO IT=1,12
-      CALL MFNAME(MFATRIPS(IT),FILENAME)
-      FATRIPS(IT)=FILENAME
-      END DO
-      chkout=.true.
-      open(161,file=fatrips(1),
-     *       status='unknown',form='binary')
-      open(162,file=fatrips(2),
-     *       status='unknown',form='binary')
-      open(163,file=fatrips(3),
-     *       status='unknown',form='binary')
-      open(164,file=fatrips(4),
-     *       status='unknown',form='binary')
-      open(165,file=fatrips(5),
-     *       status='unknown',form='binary')
-      open(166,file=fatrips(6),
-     *       status='unknown',form='binary')
-      open(167,file=fatrips(7),
-     *       status='unknown',form='binary')
-      open(168,file=fatrips(8),
-     *       status='unknown',form='binary')
-      open(169,file=fatrips(9),
-     *       status='unknown',form='binary')
-      open(170,file=fatrips(10),
-     *       status='unknown',form='binary')
-      open(191,file=fatrips(11),
-     *       status='unknown',form='binary')
-      open(192,file=fatrips(12),
-     *       status='unknown',form='binary')         
-      END IF
-C...DESTINATION CHOICE LOGSUM VALUES
-      chkout=.false.
-      IF(LSBASE) THEN
-      DO IT=1,6
-      CALL MFNAME(MFLSUM(IT),FILENAME)
-      FLSUM(IT)=FILENAME
-      END DO
-      chkout=.true.
-      open(131,file=flsum(1),
-     *       status='unknown',form='binary')
-      if(ncats.gt.1) then
-      open(132,file=flsum(2),
-     *       status='unknown',form='binary')
-      open(133,file=flsum(3),
-     *       status='unknown',form='binary')
-      open(134,file=flsum(4),
-     *       status='unknown',form='binary')
-      open(135,file=flsum(5),
-     *       status='unknown',form='binary')
-      open(136,file=flsum(6),
-     *       status='unknown',form='binary')
-      end if
-      END IF
-C...AIR PASSENGER TRIPS
-      chkout=.false.
-      IF(AIRPASS.AND.TRIPSOUT.AND.VEHOUT) THEN
-      DO IT=1,6
-      CALL MFNAME(MFAIR(IT),FILENAME)
-      FAIR(IT)=FILENAME
-      END DO
-      chkout=.true.
-      open(201,file=fair(1),
-     *       status='unknown',form='binary')
-      open(202,file=fair(2),
-     *       status='unknown',form='binary')
-      open(203,file=fair(3),
-     *       status='unknown',form='binary')
-      open(204,file=fair(4),
-     *       status='unknown',form='binary')
-      open(205,file=fair(5),
-     *       status='unknown',form='binary')
-      open(278,file=fair(6),
-     *       status='unknown',form='binary')
-      END IF
-C...ZONE TO ZONE TRANSIT TRIPS FOR VSKIM ONLY
-      chkout=.false.
-      IF(VSKIM) THEN
-      DO IT=1,25
-      CALL MFNAME(MFVSKIM(IT),FILENAME)
-      FVSKIMT(IT)=FILENAME
-      END DO
-      chkout=.true.
-      do it=1,25
-      open((it+300),file=fvskimt(it),
-     *       status='unknown',form='binary')
-      end do
-      END IF
+      CALL FILEWRITE
 C
 C     READ & STORE PEARSON PARKING LOT FILE
 C
       IF(AIR) THEN
+      IF(FAIRPARK(1:1).NE.BLANK) THEN
+      OPEN(159,FILE=FAIRPARK,STATUS='UNKNOWN',FORM='FORMATTED')
+      ELSE
+      WRITE(26,9367)
+      WRITE(*,9367)
+ 9367 FORMAT(/' RCTL 9367 (F) FAIRPARK FILE NAME NOT PROVIDED'/)
+      STOP 9367
+      END IF
+C
       INQUIRE (FILE=AIRPARK,EXIST=EXISTS)
       IF(.NOT.EXISTS) THEN
       WRITE(26,9351) AIRPARK
@@ -1280,10 +1243,16 @@ C
       OPEN(147,FILE=AIRPARK,
      *        STATUS='OLD',FORM='FORMATTED')
       END IF
-      READ(147,*) HEADER,LCPI
-      READ(147,*) HEADER,SHDROPP
-      READ(147,*) HEADER,SHDROPE
-      READ(147,*) HEADER
+      READ(147,*)  HEADER,LCPI
+      WRITE(159,9380) HEADER,LCPI
+ 9380 FORMAT(A40,',',F5.1)
+      READ(147,*)  HEADER,SHDROPP
+      WRITE(159,9380) HEADER,SHDROPP
+      READ(147,*)  HEADER,SHDROPE
+      WRITE(159,9380) HEADER,SHDROPE
+      READ(147,9381)  HEADER2
+      WRITE(159,9381) HEADER2
+ 9381 FORMAT(A300)
  9352 LINDEX=LINDEX+1
       IF(LINDEX.GT.50) THEN
       WRITE(26,9353)
@@ -1301,6 +1270,11 @@ C
      *          ' IN PARKING LOT INPUT FILE')
       STOP 9358
       END IF 
+      TYPEEG(LINDEX)=EGTYPE
+      SAVDATA(LINDEX,1)=PRKDATA(LINDEX,1)
+      DO K=3,19
+      SAVDATA(LINDEX,K)=PRKDATA(LINDEX,K)
+      END DO
       PEQUIV(LINDEX)=EQUIV(ZONE)
       IF(EGTYPE.EQ.WALK) PRKDATA(LINDEX,2)=1.0
       IF(EGTYPE.EQ.SHUTTLE) PRKDATA(LINDEX,2)=2.0
@@ -1324,6 +1298,15 @@ C
       PRKDATA(LINDEX,6)=(PRKDATA(LINDEX,6)*100.0*LCPI)/44.0
       PRKDATA(LINDEX,10)=PRKDATA(LINDEX,10)*100.0*LCPI
       PRKDATA(LINDEX,11)=PRKDATA(LINDEX,11)*100.0*LCPI
+C..RECOMPUTE NUMBER OF SPACES BASED UPON INPUT
+      IF(.NOT.SPRICE) THEN
+      IF(AIRPASS) THEN
+      PRKDATA(LINDEX,3)=PRKDATA(LINDEX,3)-PRKDATA(LINDEX,19)
+      ELSE
+      PRKDATA(LINDEX,4)=PRKDATA(LINDEX,4)-PRKDATA(LINDEX,19)
+      END IF
+      PRKDATA(LINDEX,19)=0.0
+      END IF      
       GO TO 9352
  9356 LINDEX=LINDEX-1
       WRITE(26,9357) LINDEX,LCPI,SHDROPP,SHDROPE
@@ -1353,18 +1336,6 @@ C
  9360 FORMAT(1X,I5,2(2X,F4.0),2(2X,F6.0),2(2X,F5.0),3(2X,F4.0),
      *             2(2X,F5.0),2(2X,F6.2),3(2X,F4.0),2(2X,F4.1))
  9359 CONTINUE
-      IF(FAIRPARK(1:1).NE.BLANK) THEN
-      OPEN(159,FILE=FAIRPARK,STATUS='UNKNOWN',FORM='FORMATTED')
-      WRITE(159,9362)
- 9362 FORMAT('PARKING,TOTAL'/
-     *       'LOT,VEHICLES,WALK,SHUTTLE,TRANSIT,SPACE,',
-     *       'VC_RATIO,SHD_PRICE')
-      ELSE
-      WRITE(26,9367)
-      WRITE(*,9367)
- 9367 FORMAT(/' RCTL 9367 (F) FAIRPARK FILE NAME NOT PROVIDED'/)
-      STOP
-      END IF
 C
 C...OBTAIN RENTAL FACILITY FILE DATA
 C
@@ -1599,5 +1570,19 @@ C
 C     STOP 102
       END IF
       OPEN(190,FILE=U190TMP,STATUS='UNKNOWN',FORM='FORMATTED')
+C
+      IF(AIRPASS.AND.AIRCALIB) THEN
+      open(100,file=fconst,status='unknown',form='formatted')
+      open(342,FILE=fairdist,status='unknown',form='formatted')
+      END IF
+      IF(AIRPASS.AND.AIRCALIB.AND.DEBUG) THEN
+      OPEN(343,FILE='ttc_gorail_stachoice.rpt',
+     *            STATUS='UNKNOWN',FORM='FORMATTED')
+      WRITE(343,9170)
+ 9170 FORMAT('  NO   OSTA            NAME                  DSTA',
+     *       '              NAME                 UTILITY'/
+     *       ' ----  ----  ------------------------------  ----',
+     *       '  ------------------------------  ----------')      
+      END IF
       RETURN
       END
